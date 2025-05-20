@@ -109,6 +109,7 @@ public class Tracker extends Item {
         pPlayer.swing(pUsedHand);
         ItemStack itemstack = pPlayer.getItemInHand(pUsedHand);
         CompoundTag tag = itemstack.getTag();
+        /*
         if (tag != null && tag.contains(TRACKING)) {
             ListTag listTag = tag.getList(TRACKING, 10);
             if (!listTag.isEmpty()) {
@@ -122,6 +123,10 @@ public class Tracker extends Item {
         } else {
             pPlayer.sendSystemMessage(Component.literal("No mobs added"));
         }
+        */
+
+        OpenTrackerPacket packet = new OpenTrackerPacket(itemstack, hand, pPlayer.getX(), pPlayer.getY(), pPlayer.getZ());
+        PacketHandler.INSTANCE.send(PacketDistributor.PLAYER.with(() -> (ServerPlayer) pPlayer), packet);
 
         return InteractionResultHolder.sidedSuccess(itemstack, pLevel.isClientSide());
     }
