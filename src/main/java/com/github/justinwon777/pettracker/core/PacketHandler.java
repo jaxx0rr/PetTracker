@@ -5,6 +5,7 @@ import com.github.justinwon777.pettracker.client.TrackerScreen;
 import com.github.justinwon777.pettracker.networking.OpenTrackerPacket;
 import com.github.justinwon777.pettracker.networking.RemovePacket;
 import com.github.justinwon777.pettracker.networking.TeleportPacket;
+import com.github.justinwon777.pettracker.networking.UpdatePetPacket;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Player;
@@ -27,6 +28,8 @@ public class PacketHandler {
                 TeleportPacket::handle);
         INSTANCE.registerMessage(id++, RemovePacket.class, RemovePacket::encode, RemovePacket::decode,
                 RemovePacket::handle);
+        INSTANCE.registerMessage(id++, UpdatePetPacket.class,
+                UpdatePetPacket::encode, UpdatePetPacket::decode, UpdatePetPacket::handle);
     }
 
     @SuppressWarnings("resource")

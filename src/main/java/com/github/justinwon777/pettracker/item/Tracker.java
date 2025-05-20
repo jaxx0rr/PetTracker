@@ -1,6 +1,7 @@
 package com.github.justinwon777.pettracker.item;
 
 import com.github.justinwon777.pettracker.core.PacketHandler;
+import com.github.justinwon777.pettracker.core.PetPositionTracker;
 import com.github.justinwon777.pettracker.networking.OpenTrackerPacket;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -80,23 +81,14 @@ public class Tracker extends Item {
                     CompoundTag entityTag = listTag.getCompound(i);
                     Entity entity = getEntity((ServerLevel) pLevel, entityTag.getUUID("uuid"));
                     if (entity != null) {
-
-                        int newX = (int) entity.getX();
-                        int newY = (int) entity.getY();
-                        int newZ = (int) entity.getZ();
-
-                        if (entityTag.getInt("x") != newX ||
-                                entityTag.getInt("y") != newY ||
-                                entityTag.getInt("z") != newZ ||
-                                !entityTag.getBoolean("active")) {
-
-                            entityTag.putInt("x", newX);
-                            entityTag.putInt("y", newY);
-                            entityTag.putInt("z", newZ);
-                            entityTag.putBoolean("active", true);
-                            entityTag.putString("name", entity.getDisplayName().getString());
-                        }
-
+                        PetPositionTracker.updatePet(entity);
+                        /*
+                        entityTag.putInt("x", (int) entity.getX());
+                        entityTag.putInt("y", (int) entity.getY());
+                        entityTag.putInt("z", (int) entity.getZ());
+                        entityTag.putBoolean("active", true);
+                        entityTag.putString("name", entity.getDisplayName().getString());
+                        */
                     } else {
                         entityTag.putBoolean("active", false);
                     }

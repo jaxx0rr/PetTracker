@@ -2,6 +2,8 @@ package com.github.justinwon777.pettracker.client;
 
 import com.github.justinwon777.pettracker.PetTracker;
 import com.github.justinwon777.pettracker.core.PacketHandler;
+import com.github.justinwon777.pettracker.core.PetPositionTracker;
+import com.github.justinwon777.pettracker.core.PetScanner;
 import com.github.justinwon777.pettracker.item.Tracker;
 import com.github.justinwon777.pettracker.networking.RemovePacket;
 import com.github.justinwon777.pettracker.networking.TeleportPacket;
@@ -10,16 +12,21 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.ObjectSelectionList;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.TamableAnimal;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
@@ -27,6 +34,7 @@ import net.minecraftforge.api.distmarker.OnlyIn;
 import javax.annotation.Nullable;
 import java.util.*;
 import java.util.List;
+import java.util.stream.StreamSupport;
 
 @OnlyIn(Dist.CLIENT)
 public class TrackerScreen extends Screen {
@@ -40,6 +48,7 @@ public class TrackerScreen extends Screen {
     private TrackerList trackerList;
     private Button teleportButton;
     private Button removeButton;
+    private Button scanButton;
     private final ItemStack itemStack;
     private final String hand;
     private final double px;
@@ -57,6 +66,29 @@ public class TrackerScreen extends Screen {
         this.pz = z;
     }
 
+    public Font getFont() {
+        return this.font;
+    }
+
+    public double getPlayerX() {
+        return this.px;
+    }
+
+    public double getPlayerY() {
+        return this.py;
+    }
+
+    public double getPlayerZ() {
+        return this.pz;
+    }
+
+    public ItemStack getTrackerItemStack() {
+        return this.itemStack;
+    }
+
+    public String getHandKey() {
+        return this.hand;
+    }
 
     @Override
     protected void init() {
@@ -70,7 +102,8 @@ public class TrackerScreen extends Screen {
                 new Button.Builder(Component.literal("Teleport"), btn -> {
                     TrackerList.Entry entry = this.trackerList.getSelected();
                     if (entry != null) {
-                        PacketHandler.INSTANCE.sendToServer(new TeleportPacket(entry.uuid));
+                        //PacketHandler.INSTANCE.sendToServer(new TeleportPacket(entry.uuid));
+                        PacketHandler.INSTANCE.sendToServer(new TeleportPacket(entry.getUuid()));
                     }
                 }).bounds(leftPos + 5, topPos + imageHeight - 10 - 15, 83, 20)
                         .build()
@@ -80,7 +113,8 @@ public class TrackerScreen extends Screen {
                 new Button.Builder(Component.literal("Remove"), btn -> {
                     TrackerList.Entry entry = this.trackerList.getSelected();
                     if (entry != null) {
-                        PacketHandler.INSTANCE.sendToServer(new RemovePacket(entry.uuid, this.itemStack, this.hand));
+                        //PacketHandler.INSTANCE.sendToServer(new RemovePacket(entry.uuid, this.itemStack, this.hand));
+                        PacketHandler.INSTANCE.sendToServer(new RemovePacket(entry.getUuid(), this.itemStack, this.hand));
                         this.trackerList.delete(entry);
                         updateRemoveButtonStatus(false);
                         updateTeleportButtonStatus(false);
@@ -89,12 +123,96 @@ public class TrackerScreen extends Screen {
                         .build()
         );
 
+        this.scanButton = this.addRenderableWidget(
+                new Button.Builder(Component.literal("Scan"), btn -> {
+                    Set<UUID> alreadyTracked = new HashSet<>();
+
+                    // Collect tracked UUIDs
+                    for (ObjectSelectionList.Entry<?> entry : this.trackerList.children()) {
+                        if (entry instanceof TrackerList.Entry typedEntry && typedEntry.isTracked()) {
+                            alreadyTracked.add(typedEntry.getUuid());
+                        }
+                    }
+
+                    // Remove all previously scanned (untracked) entries
+                    List<TrackerList.Entry> toRemove = new ArrayList<>();
+                    for (ObjectSelectionList.Entry<?> entry : this.trackerList.children()) {
+                        if (entry instanceof TrackerList.Entry typedEntry && !typedEntry.isTracked()) {
+                            toRemove.add(typedEntry);
+                        }
+                    }
+                    for (TrackerList.Entry entry : toRemove) {
+                        this.trackerList.delete(entry);
+                    }
+
+                    // Scan for new untracked pets and display them
+                    List<TrackerList.Entry> untrackedPets = PetScanner.scanLoadedPets(
+                            alreadyTracked, this, this.trackerList.getWidth(), this.trackerList);
+
+                    for (TrackerList.Entry entry : untrackedPets) {
+                        this.trackerList.addUntrackedEntry(entry);
+                    }
+                })
+                        .bounds(leftPos + 8, topPos + 16, 60, 16)
+                        .tooltip(Tooltip.create(Component.literal("Scan all loaded chunks for pets")))
+                        .build()
+        );
+
+        this.addRenderableWidget(
+                new Button.Builder(Component.literal("Deep Scan"), btn -> {
+                    Set<UUID> alreadyTracked = new HashSet<>();
+                    for (ObjectSelectionList.Entry<?> entry : this.trackerList.children()) {
+                        if (entry instanceof TrackerList.Entry typed && typed.isTracked()) {
+                            alreadyTracked.add(typed.getUuid());
+                        }
+                    }
+
+                    // Clean up previously added global pets
+                    List<TrackerList.Entry> toRemove = new ArrayList<>();
+                    for (ObjectSelectionList.Entry<?> entry : this.trackerList.children()) {
+                        if (entry instanceof TrackerList.Entry typed && !typed.isTracked()) {
+                            toRemove.add(typed);
+                        }
+                    }
+                    toRemove.forEach(this.trackerList::delete);
+
+                    List<TrackerList.Entry> found = PetScanner.scanAllPetsInCurrentDimension(
+                            alreadyTracked, this, this.trackerList.getWidth(), this.trackerList);
+
+                    for (TrackerList.Entry e : found) {
+                        this.trackerList.addUntrackedEntry(e);
+                    }
+                })
+                        .bounds(leftPos + 90, topPos + 16, 60, 16)
+                        .tooltip(Tooltip.create(Component.literal("Scan all loaded and unloaded chunks for pets in this dimension (singleplayer only)")))
+                        .build()
+        );
+
+
         updateTeleportButtonStatus(false);
         updateRemoveButtonStatus(false);
     }
 
     @Override
     public void render(GuiGraphics guiGraphics, int pMouseX, int pMouseY, float pPartialTick) {
+
+        for (ObjectSelectionList.Entry<?> entry : this.trackerList.children()) {
+            if (entry instanceof TrackerList.Entry e && !e.isTracked()) {
+                Entity entity = StreamSupport.stream(
+                                Minecraft.getInstance().level.entitiesForRendering().spliterator(), false)
+                        .filter(en -> e.getUuid().equals(e.getUuid()))
+                        .findFirst()
+                        .orElse(null);
+
+                if (entity != null) {
+                    //System.out.println("[UPDATE] Found untracked entity: " + e.getUuid());
+                    PetPositionTracker.updatePet(entity);
+                } else {
+                    //System.out.println("[MISS] Could NOT find entity: " + e.getUuid());
+                }
+            }
+        }
+
         this.renderBackground(guiGraphics);
         this.trackerList.render(guiGraphics, pMouseX, pMouseY, pPartialTick);
 
@@ -162,138 +280,4 @@ public class TrackerScreen extends Screen {
         return false;
     }
 
-    @OnlyIn(Dist.CLIENT)
-    class TrackerList extends ObjectSelectionList<TrackerScreen.TrackerList.Entry> {
-        private final TrackerScreen screen;
-
-        public TrackerList(Minecraft pMinecraft, ItemStack itemstack, TrackerScreen screen, int top) {
-            super(pMinecraft, TrackerScreen.this.width, TrackerScreen.this.height, top + 30,
-                    top + 180, 37);
-            this.setRenderBackground(false);
-            this.setRenderTopAndBottom(false);
-            this.screen = screen;
-            CompoundTag tag = itemstack.getTag();
-            if (tag != null) {
-                ListTag listTag = tag.getList(Tracker.TRACKING, 10);
-                for (int i = 0; i < listTag.size(); ++i) {
-                    CompoundTag entityTag = listTag.getCompound(i);
-                    String name = entityTag.getString("name");
-                    int x = entityTag.getInt("x");
-                    int y = entityTag.getInt("y");
-                    int z = entityTag.getInt("z");
-                    boolean active = entityTag.getBoolean("active");
-                    UUID uuid = entityTag.getUUID("uuid");
-                    this.addEntry(new Entry(name, x, y, z, active, uuid));
-                }
-
-            }
-
-            if (this.getSelected() != null) {
-                this.centerScrollOn(this.getSelected());
-            }
-
-        }
-
-        public void setSelected(@Nullable TrackerList.Entry pSelected) {
-            super.setSelected(pSelected);
-            if (pSelected != null) {
-                this.screen.updateRemoveButtonStatus(true);
-                this.screen.updateTeleportButtonStatus(pSelected.active);
-            }
-
-        }
-
-        protected int getScrollbarPosition() {
-            return super.getScrollbarPosition() - 45;
-        }
-
-        public int getRowWidth() {
-            return super.getRowWidth() - 64;
-        }
-
-        protected void renderItem(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick, int index, int left, int top, int width, int height) {
-            TrackerList.Entry e = this.getEntry(index);
-            int i = this.x0 + (this.width - width) / 2;
-            int j = this.x0 + (this.width + width) / 2;
-
-            guiGraphics.fill(i, top - 2, j, top + height + 2, 0xFFAAAAAA);
-            guiGraphics.fill(i + 1, top - 1, j - 1, top + height + 1, 0xFFFFFFFF);
-
-            if (this.isSelectedItem(index)) {
-                this.renderSelection(guiGraphics, top, width, height, 0xFF000000, 0xFFE0E0E0);
-            }
-
-            e.render(guiGraphics, index, top, left, width, height, mouseX, mouseY, Objects.equals(this.getHovered(), e), partialTick);
-        }
-
-        public boolean isFocused() {
-            return TrackerScreen.this.getFocused() == this;
-        }
-
-        public void delete(Entry entry) {
-            this.removeEntry(entry);
-        }
-
-        @OnlyIn(Dist.CLIENT)
-        public class Entry extends ObjectSelectionList.Entry<TrackerScreen.TrackerList.Entry> {
-            public String name;
-            public int x;
-            public int y;
-            public int z;
-            public boolean active;
-            public UUID uuid;
-
-            public Entry(String name, int x, int y, int z, boolean active, UUID uuid) {
-                this.name = name;
-                this.x = x;
-                this.y = y;
-                this.z = z;
-                this.active = active;
-                this.uuid = uuid;
-            }
-
-            @Override
-            public void render(GuiGraphics guiGraphics, int index, int y, int x, int width, int height,
-                               int mouseX, int mouseY, boolean isMouseOver, float partialTick) {
-                String location = "Location: " + this.x + ", " + this.y + ", " + this.z;
-                String distance = distanceTo(this.x, this.y, this.z) + " blocks away";
-
-                guiGraphics.drawString(TrackerScreen.this.font, this.name,
-                        TrackerScreen.TrackerList.this.width / 2 - TrackerScreen.this.font.width(name) / 2,
-                        y + 1, 4210752, false);
-                guiGraphics.drawString(TrackerScreen.this.font, location,
-                        TrackerScreen.TrackerList.this.width / 2 - TrackerScreen.this.font.width(location) / 2,
-                        y + 12, 4210752, false);
-                guiGraphics.drawString(TrackerScreen.this.font, distance,
-                        TrackerScreen.TrackerList.this.width / 2 - TrackerScreen.this.font.width(distance) / 2,
-                        y + 23, 4210752, false);
-            }
-
-            @Override
-            public boolean mouseClicked(double mouseX, double mouseY, int button) {
-                if (button == 0) {
-                    this.select();
-                    return true;
-                } else {
-                    return false;
-                }
-            }
-
-            private void select() {
-                TrackerScreen.TrackerList.this.setSelected(this);
-            }
-
-            @Override
-            public Component getNarration() {
-                return Component.translatable("narrator.select", this.name);
-            }
-
-            public int distanceTo(int x, int y, int z) {
-                float f = (float) (TrackerScreen.this.px - x);
-                float f1 = (float) (TrackerScreen.this.py - y);
-                float f2 = (float) (TrackerScreen.this.pz - z);
-                return (int) Mth.sqrt(f * f + f1 * f1 + f2 * f2);
-            }
-        }
-    }
 }

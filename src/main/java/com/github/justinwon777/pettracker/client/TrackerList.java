@@ -1,0 +1,224 @@
+package com.github.justinwon777.pettracker.client;
+
+
+import com.github.justinwon777.pettracker.core.PetPositionTracker;
+import com.github.justinwon777.pettracker.item.Tracker;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.ObjectSelectionList;
+import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.network.chat.Component;
+import net.minecraft.util.Mth;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.TamableAnimal;
+import net.minecraft.world.item.ItemStack;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.api.distmarker.OnlyIn;
+
+import javax.annotation.Nullable;
+import java.util.Objects;
+import java.util.UUID;
+import java.util.stream.StreamSupport;
+
+@OnlyIn(Dist.CLIENT)
+public class TrackerList extends ObjectSelectionList<TrackerList.Entry> {
+    private final TrackerScreen screen;
+
+    public TrackerList(Minecraft pMinecraft, ItemStack itemstack, TrackerScreen screen, int top) {
+        super(pMinecraft, screen.width, screen.height, top + 30, top + 180, 37);
+        this.setRenderBackground(false);
+        this.setRenderTopAndBottom(false);
+        this.screen = screen;
+
+        // Extract UUIDs from tag, but don't read any other NBT fields
+        CompoundTag tag = itemstack.getTag();
+        if (tag != null) {
+            ListTag listTag = tag.getList(Tracker.TRACKING, 10);
+            for (int i = 0; i < listTag.size(); ++i) {
+                CompoundTag entityTag = listTag.getCompound(i);
+                UUID uuid = entityTag.getUUID("uuid");
+
+                Entity entity = StreamSupport.stream(
+                                Minecraft.getInstance().level.entitiesForRendering().spliterator(), false)
+                        .filter(e -> uuid.equals(e.getUUID()))
+                        .findFirst()
+                        .orElse(null);
+
+                if (entity instanceof TamableAnimal tamable) {
+                    String name = tamable.getDisplayName().getString();
+                    BlockPos pos = entity.blockPosition();
+                    boolean active = tamable.isAlive();
+                    //this.addEntry(new Entry(name, pos.getX(), pos.getY(), pos.getZ(), active, uuid));
+                    this.addEntry(new Entry(name, pos.getX(), pos.getY(), pos.getZ(), active, uuid, true, this.screen, this.width, this));
+
+                } else {
+                    //this.addEntry(new Entry("Unknown", 0, 0, 0, false, uuid));
+                    this.addEntry(new Entry("Unknown", 0, 0, 0, false, uuid, false, this.screen, this.width, this));
+
+                }
+            }
+        }
+
+        if (this.getSelected() != null) {
+            this.centerScrollOn(this.getSelected());
+        }
+    }
+
+
+    public void setSelected(@Nullable TrackerList.Entry pSelected) {
+        super.setSelected(pSelected);
+        if (pSelected != null) {
+            this.screen.updateRemoveButtonStatus(true);
+            this.screen.updateTeleportButtonStatus(pSelected.active);
+        }
+
+    }
+
+    protected int getScrollbarPosition() {
+        return super.getScrollbarPosition() - 45;
+    }
+
+    public int getRowWidth() {
+        return super.getRowWidth() - 64;
+    }
+
+    protected void renderItem(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick, int index, int left, int top, int width, int height) {
+        TrackerList.Entry e = this.getEntry(index);
+        int i = this.x0 + (this.width - width) / 2;
+        int j = this.x0 + (this.width + width) / 2;
+
+        guiGraphics.fill(i, top - 2, j, top + height + 2, 0xFFAAAAAA);
+        guiGraphics.fill(i + 1, top - 1, j - 1, top + height + 1, 0xFFFFFFFF);
+
+        if (this.isSelectedItem(index)) {
+            this.renderSelection(guiGraphics, top, width, height, 0xFF000000, 0xFFE0E0E0);
+        }
+
+        e.render(guiGraphics, index, top, left, width, height, mouseX, mouseY, Objects.equals(this.getHovered(), e), partialTick);
+    }
+
+    public boolean isFocused() {
+        //return TrackerScreen.this.getFocused() == this;
+        return screen.getFocused() == this;
+    }
+
+    public void delete(Entry entry) {
+        this.removeEntry(entry);
+    }
+
+    public void addUntrackedEntry(TrackerList.Entry entry) {
+        addEntry(entry); // ✅ this is the real method from AbstractSelectionList
+    }
+
+    @OnlyIn(Dist.CLIENT)
+    public static class Entry extends ObjectSelectionList.Entry<TrackerList.Entry> {    private final String name;
+        private final int x, y, z;
+        private final UUID uuid;
+        private final boolean active;
+        private final boolean tracked;
+        private final TrackerScreen screen; // ✅ this line fixes the error
+        private final int listWidth;
+        private final TrackerList parentList;
+        private final boolean isGlobalScan; // NEW
+
+        public Entry(String name, int x, int y, int z, boolean active, UUID uuid, boolean tracked, TrackerScreen screen, int listWidth, TrackerList parentList, boolean isGlobalScan) {
+            this.name = name;
+            this.x = x;
+            this.y = y;
+            this.z = z;
+            this.active = active;
+            this.uuid = uuid;
+            this.tracked = tracked;
+            this.screen = screen;
+            this.listWidth = listWidth;
+            this.parentList = parentList;
+            this.isGlobalScan = isGlobalScan;
+        }
+
+        public Entry(String name, int x, int y, int z, boolean active, UUID uuid,
+                     boolean tracked, TrackerScreen screen, int listWidth, TrackerList parentList) {
+            this(name, x, y, z, active, uuid, tracked, screen, listWidth, parentList, false);
+        }
+
+        public UUID getUuid() {
+            return this.uuid;
+        }
+
+        public boolean isTracked() {
+            return this.tracked;
+        }
+
+        @Override
+        public void render(GuiGraphics guiGraphics, int index, int y, int x, int width, int height,
+                           int mouseX, int mouseY, boolean isMouseOver, float partialTick) {
+            PetPositionTracker.TrackedPet pos = PetPositionTracker.get(this.uuid);
+
+            String location = pos != null
+                    ? "Location: " + (int) pos.x() + ", " + (int) pos.y() + ", " + (int) pos.z()
+                    : "Location: ???";
+
+            String distance = pos != null
+                    ? distanceTo((int) pos.x(), (int) pos.y(), (int) pos.z()) + " blocks away"
+                    : "Distance: ???";
+
+            int color;
+            String label;
+
+            if (this.tracked) {
+                color = 0xAAAAAA;
+                label = "";
+            } else if (this.isGlobalScan) {
+                color = 0x3399FF; // blue-ish
+                label = " 📡 [unloaded chunk]";
+            } else {
+                color = 0xFF6666; // red
+                label = " [untracked]";
+            }
+
+            String displayName = this.name + label;
+
+            int centerX = listWidth / 2;
+
+            guiGraphics.drawString(screen.getFont(), displayName,
+                    centerX - screen.getFont().width(displayName) / 2,
+                    y + 1, color, false);
+
+            guiGraphics.drawString(screen.getFont(), location,
+                    centerX - screen.getFont().width(location) / 2,
+                    y + 12, color, false);
+
+            guiGraphics.drawString(screen.getFont(), distance,
+                    centerX - screen.getFont().width(distance) / 2,
+                    y + 23, color, false);
+        }
+
+        @Override
+        public boolean mouseClicked(double mouseX, double mouseY, int button) {
+            if (button == 0) {
+                this.select();
+                return true;
+            } else {
+                return false;
+            }
+        }
+
+        private void select() {
+            parentList.setSelected(this);
+        }
+
+        @Override
+        public Component getNarration() {
+            return Component.translatable("narrator.select", this.name);
+        }
+
+        public int distanceTo(int x, int y, int z) {
+            float f = (float) (screen.getPlayerX() - x);
+            float f1 = (float) (screen.getPlayerY() - y);
+            float f2 = (float) (screen.getPlayerZ() - z);
+            return (int) Mth.sqrt(f * f + f1 * f1 + f2 * f2);
+        }
+
+    }
+}
