@@ -6,11 +6,16 @@
 
 ## 📦 Features
 
-- 🧭 Adds a **Pet Tracker item** that lists your tamed pets
-- 📍 Shows pet names, positions, and distance
-- 🐺 Supports any `TamableAnimal` (dogs, cats, parrots, etc.)
-- 🧠 Automatically updates tracked pets while in use
+- 🧭 Adds a Pet Tracker item that lists your tamed pets
+- 📍 Shows pet names, positions, and real-time distance
+- 🐺 Supports any TamableAnimal (wolves, cats, parrots, foxes, etc.)
+- 🔄 Automatically updates tracked pets while the item is in your inventory
+- 🧭 Scan nearby pets (in loaded chunks) to discover new tameable entities
+- 🛰️ Deep scan (singleplayer only) for all tamed pets in the current dimension, including those in unloaded chunks
 - ✅ Simple UI for teleporting to or removing pets from the list
+- 🎨 Visual distinction for globally scanned pets not currently rendered in client view
+
+
 
 ---
 
