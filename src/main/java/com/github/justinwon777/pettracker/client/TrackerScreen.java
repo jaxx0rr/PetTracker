@@ -153,7 +153,7 @@ public class TrackerScreen extends Screen {
                         this.trackerList.addUntrackedEntry(entry);
                     }
                 })
-                        .bounds(leftPos + 8, topPos + 16, 60, 16)
+                        .bounds(leftPos + 10, topPos + 15, 60, 16)
                         .tooltip(Tooltip.create(Component.literal("Scan all loaded chunks for pets")))
                         .build()
         );
@@ -183,7 +183,7 @@ public class TrackerScreen extends Screen {
                         this.trackerList.addUntrackedEntry(e);
                     }
                 })
-                        .bounds(leftPos + 90, topPos + 16, 60, 16)
+                        .bounds(leftPos + 100, topPos + 15, 60, 16)
                         .tooltip(Tooltip.create(Component.literal("Scan all loaded and unloaded chunks for pets in this dimension (singleplayer only)")))
                         .build()
         );

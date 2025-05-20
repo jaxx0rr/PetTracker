@@ -36,7 +36,16 @@ public class PetScanner {
                             new com.github.justinwon777.pettracker.networking.UpdatePetPacket(t.getUUID())
                     );
 
-                    String name = t.getDisplayName().getString();
+                    String petName = t.getDisplayName().getString();
+                    String ownerName = t.getOwner() != null ? t.getOwner().getName().getString() : "Unknown";
+                    String name;
+
+                    if (t.isOwnedBy(player)) {
+                        name = petName;
+                    } else {
+                        name = ownerName + "'s " + petName;
+                    }
+
                     int x = (int) t.getX();
                     int y = (int) t.getY();
                     int z = (int) t.getZ();
@@ -77,7 +86,16 @@ public class PetScanner {
                                     clientLevel.entitiesForRendering().spliterator(), false)
                             .anyMatch(e -> e.getUUID().equals(t.getUUID()));
 
-                    String name = t.getDisplayName().getString();
+                    String petName = t.getDisplayName().getString();
+                    String ownerName = t.getOwner() != null ? t.getOwner().getName().getString() : "Unknown";
+                    String name;
+
+                    if (t.isOwnedBy(player)) {
+                        name = petName;
+                    } else {
+                        name = ownerName + "'s " + petName;
+                    }
+
                     int x = (int) t.getX();
                     int y = (int) t.getY();
                     int z = (int) t.getZ();
