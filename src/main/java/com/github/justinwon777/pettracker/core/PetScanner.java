@@ -2,28 +2,31 @@ package com.github.justinwon777.pettracker.core;
 
 import com.github.justinwon777.pettracker.client.TrackerList;
 import com.github.justinwon777.pettracker.client.TrackerScreen;
+import com.github.justinwon777.pettracker.item.Tracker;
+import com.github.justinwon777.pettracker.networking.AddPetsToTrackerPacket;
+import com.github.justinwon777.pettracker.networking.UpdatePetPacket;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.TamableAnimal;
+import net.minecraft.world.item.ItemStack;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.StreamSupport;
 
 public class PetScanner {
 
-    //this is the new comment: code 1257
-
-    //public static List<TrackerList.Entry> scanLoadedPets(Set<UUID> alreadyTracked) {
     public static List<TrackerList.Entry> scanLoadedPets(Set<UUID> alreadyTracked, TrackerScreen screen, int listWidth, TrackerList parentList) {
-
-    List<TrackerList.Entry> untrackedPets = new ArrayList<>();
+        List<TrackerList.Entry> untrackedPets = new ArrayList<>();
         var level = Minecraft.getInstance().level;
         LocalPlayer player = Minecraft.getInstance().player;
 
         if (level == null || player == null) return untrackedPets;
+
+        List<AddPetsToTrackerPacket.PetData> pets = new ArrayList<>();
 
         StreamSupport.stream(level.entitiesForRendering().spliterator(), false)
                 .filter(e -> e instanceof TamableAnimal)
@@ -31,32 +34,29 @@ public class PetScanner {
                 .filter(t -> t.isTame() && t.isOwnedBy(player))
                 .filter(t -> !alreadyTracked.contains(t.getUUID()))
                 .forEach(t -> {
-
-                    com.github.justinwon777.pettracker.core.PacketHandler.INSTANCE.sendToServer(
-                            new com.github.justinwon777.pettracker.networking.UpdatePetPacket(t.getUUID())
-                    );
+                    PacketHandler.INSTANCE.sendToServer(new UpdatePetPacket(t.getUUID()));
 
                     String petName = t.getDisplayName().getString();
                     String ownerName = t.getOwner() != null ? t.getOwner().getName().getString() : "Unknown";
-                    String name;
-
-                    if (t.isOwnedBy(player)) {
-                        name = petName;
-                    } else {
-                        name = ownerName + "'s " + petName;
-                    }
+                    String name = t.isOwnedBy(player) ? petName : ownerName + "'s " + petName;
 
                     int x = (int) t.getX();
                     int y = (int) t.getY();
                     int z = (int) t.getZ();
 
-                    untrackedPets.add(new TrackerList.Entry(name, x, y, z, true, t.getUUID(), false, screen, listWidth, parentList));
+                    TrackerList.Entry entry = new TrackerList.Entry(name, x, y, z, true, t.getUUID(), false, screen, listWidth, parentList, "scan");
+                    untrackedPets.add(entry);
 
+                    pets.add(new AddPetsToTrackerPacket.PetData(
+                            t.getUUID(), name, x, y, z, true, "scan"
+                    ));
                 });
 
-        return untrackedPets;
-    }
+        PacketHandler.INSTANCE.sendToServer(new AddPetsToTrackerPacket(pets, screen.getHandKey()));
 
+        return untrackedPets;
+
+    }
 
     public static List<TrackerList.Entry> scanAllPetsInCurrentDimension(Set<UUID> alreadyTracked, TrackerScreen screen, int listWidth, TrackerList parentList) {
         List<TrackerList.Entry> foundPets = new ArrayList<>();
@@ -67,44 +67,52 @@ public class PetScanner {
         if (player == null || level == null) return foundPets;
 
         var server = client.getSingleplayerServer();
-        if (server == null) return foundPets; // not singleplayer
+        if (server == null) return foundPets;
 
         var serverLevel = server.getLevel(level.dimension());
         if (serverLevel == null) return foundPets;
 
-        var clientLevel = Minecraft.getInstance().level;
+        Set<UUID> redPetsSeen = new HashSet<>();
+        List<AddPetsToTrackerPacket.PetData> pets = new ArrayList<>();
 
-        StreamSupport.stream(serverLevel.getEntities().getAll().spliterator(), false)
+        // First pass: nearby rendered pets
+        StreamSupport.stream(level.entitiesForRendering().spliterator(), false)
                 .filter(e -> e instanceof TamableAnimal)
                 .map(e -> (TamableAnimal) e)
                 .filter(TamableAnimal::isTame)
                 .filter(t -> !alreadyTracked.contains(t.getUUID()))
                 .forEach(t -> {
-                    PetPositionTracker.updatePet(t);
+                    redPetsSeen.add(t.getUUID());
+                });
 
-                    boolean isClientLoaded = StreamSupport.stream(
-                                    clientLevel.entitiesForRendering().spliterator(), false)
-                            .anyMatch(e -> e.getUUID().equals(t.getUUID()));
+        // Second pass: full dimension scan
+        StreamSupport.stream(serverLevel.getEntities().getAll().spliterator(), false)
+                .filter(e -> e instanceof TamableAnimal)
+                .map(e -> (TamableAnimal) e)
+                .filter(TamableAnimal::isTame)
+                .filter(t -> !alreadyTracked.contains(t.getUUID()))
+                .filter(t -> !redPetsSeen.contains(t.getUUID())) // avoid duplicates
+                .forEach(t -> {
+                    PetPositionTracker.updatePet(t);
 
                     String petName = t.getDisplayName().getString();
                     String ownerName = t.getOwner() != null ? t.getOwner().getName().getString() : "Unknown";
-                    String name;
-
-                    if (t.isOwnedBy(player)) {
-                        name = petName;
-                    } else {
-                        name = ownerName + "'s " + petName;
-                    }
+                    String name = t.isOwnedBy(player) ? petName : ownerName + "'s " + petName;
 
                     int x = (int) t.getX();
                     int y = (int) t.getY();
                     int z = (int) t.getZ();
 
-                    foundPets.add(new TrackerList.Entry(name, x, y, z, true,
-                            t.getUUID(), false, screen, listWidth, parentList, !isClientLoaded));
+                    TrackerList.Entry entry = new TrackerList.Entry(name, x, y, z, true, t.getUUID(), false, screen, listWidth, parentList, "extscan");
+                    foundPets.add(entry);
+
+                    pets.add(new AddPetsToTrackerPacket.PetData(
+                            t.getUUID(), name, x, y, z, true, "extscan"
+                    ));
                 });
+
+        PacketHandler.INSTANCE.sendToServer(new AddPetsToTrackerPacket(pets, screen.getHandKey()));
 
         return foundPets;
     }
-
 }

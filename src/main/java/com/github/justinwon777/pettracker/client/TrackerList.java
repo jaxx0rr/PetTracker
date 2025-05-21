@@ -32,13 +32,14 @@ public class TrackerList extends ObjectSelectionList<TrackerList.Entry> {
         this.setRenderTopAndBottom(false);
         this.screen = screen;
 
-        // Extract UUIDs from tag, but don't read any other NBT fields
+        // Extract UUIDs from tag, including tracking metadata
         CompoundTag tag = itemstack.getTag();
         if (tag != null) {
             ListTag listTag = tag.getList(Tracker.TRACKING, 10);
             for (int i = 0; i < listTag.size(); ++i) {
                 CompoundTag entityTag = listTag.getCompound(i);
                 UUID uuid = entityTag.getUUID("uuid");
+                String source = entityTag.contains("source") ? entityTag.getString("source") : "tracked";
 
                 Entity entity = StreamSupport.stream(
                                 Minecraft.getInstance().level.entitiesForRendering().spliterator(), false)
@@ -50,14 +51,12 @@ public class TrackerList extends ObjectSelectionList<TrackerList.Entry> {
                     String name = tamable.getDisplayName().getString();
                     BlockPos pos = entity.blockPosition();
                     boolean active = tamable.isAlive();
-                    //this.addEntry(new Entry(name, pos.getX(), pos.getY(), pos.getZ(), active, uuid));
-                    this.addEntry(new Entry(name, pos.getX(), pos.getY(), pos.getZ(), active, uuid, true, this.screen, this.width, this));
-
+                    this.addEntry(new Entry(name, pos.getX(), pos.getY(), pos.getZ(), active, uuid, source.equals("tracked"), this.screen, this.width, this, source));
                 } else {
-                    //this.addEntry(new Entry("Unknown", 0, 0, 0, false, uuid));
-                    this.addEntry(new Entry("Unknown", 0, 0, 0, false, uuid, false, this.screen, this.width, this));
-
+                    String name = entityTag.getString("name");
+                    this.addEntry(new Entry(name, 0, 0, 0, false, uuid, false, this.screen, this.width, this, source));
                 }
+
             }
         }
 
@@ -65,6 +64,7 @@ public class TrackerList extends ObjectSelectionList<TrackerList.Entry> {
             this.centerScrollOn(this.getSelected());
         }
     }
+
 
 
     public void setSelected(@Nullable TrackerList.Entry pSelected) {
@@ -75,6 +75,7 @@ public class TrackerList extends ObjectSelectionList<TrackerList.Entry> {
         }
 
     }
+
 
     protected int getScrollbarPosition() {
         return super.getScrollbarPosition() - 45;
@@ -118,12 +119,12 @@ public class TrackerList extends ObjectSelectionList<TrackerList.Entry> {
         private final UUID uuid;
         private final boolean active;
         private final boolean tracked;
-        private final TrackerScreen screen; // ✅ this line fixes the error
+        private final TrackerScreen screen;
         private final int listWidth;
         private final TrackerList parentList;
-        private final boolean isGlobalScan; // NEW
+        private final String source;
 
-        public Entry(String name, int x, int y, int z, boolean active, UUID uuid, boolean tracked, TrackerScreen screen, int listWidth, TrackerList parentList, boolean isGlobalScan) {
+        public Entry(String name, int x, int y, int z, boolean active, UUID uuid, boolean tracked, TrackerScreen screen, int listWidth, TrackerList parentList, String source) {
             this.name = name;
             this.x = x;
             this.y = y;
@@ -134,12 +135,11 @@ public class TrackerList extends ObjectSelectionList<TrackerList.Entry> {
             this.screen = screen;
             this.listWidth = listWidth;
             this.parentList = parentList;
-            this.isGlobalScan = isGlobalScan;
+            this.source = source;
         }
 
-        public Entry(String name, int x, int y, int z, boolean active, UUID uuid,
-                     boolean tracked, TrackerScreen screen, int listWidth, TrackerList parentList) {
-            this(name, x, y, z, active, uuid, tracked, screen, listWidth, parentList, false);
+        public String getSource() {
+            return this.source;
         }
 
         public UUID getUuid() {
@@ -166,16 +166,25 @@ public class TrackerList extends ObjectSelectionList<TrackerList.Entry> {
             int color;
             String label;
 
-            if (this.tracked) {
-                color = 0xAAAAAA;
-                label = "";
-            } else if (this.isGlobalScan) {
-                color = 0x3399FF; // blue-ish
-                label = " 📡 [unloaded chunk]";
-            } else {
-                color = 0xFF6666; // red
-                label = " [untracked]";
+            switch (this.source) {
+                case "scan" -> {
+                    color = 0xFF6666;     // Red: nearby but untracked
+                    label = " [untracked]";
+                }
+                case "extscan" -> {
+                    color = 0x3399FF;     // Blue: far but loaded
+                    label = " 📡 [far chunk]";
+                }
+                case "deepscan" -> {
+                    color = 0x000000;     // Black: from unloaded chunks
+                    label = " 🛰️ [deep scan]";
+                }
+                default -> { // "tracked" or anything unknown
+                    color = 0xAAAAAA;     // Gray: default tracked pets
+                    label = "";
+                }
             }
+
 
             String displayName = this.name + label;
 

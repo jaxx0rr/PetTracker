@@ -2,10 +2,7 @@ package com.github.justinwon777.pettracker.core;
 
 import com.github.justinwon777.pettracker.PetTracker;
 import com.github.justinwon777.pettracker.client.TrackerScreen;
-import com.github.justinwon777.pettracker.networking.OpenTrackerPacket;
-import com.github.justinwon777.pettracker.networking.RemovePacket;
-import com.github.justinwon777.pettracker.networking.TeleportPacket;
-import com.github.justinwon777.pettracker.networking.UpdatePetPacket;
+import com.github.justinwon777.pettracker.networking.*;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Player;
@@ -22,14 +19,11 @@ public class PacketHandler {
 
     public static void register() {
         int id = 0;
-        INSTANCE.registerMessage(id++, OpenTrackerPacket.class, OpenTrackerPacket::encode, OpenTrackerPacket::decode,
-                OpenTrackerPacket::handle);
-        INSTANCE.registerMessage(id++, TeleportPacket.class, TeleportPacket::encode, TeleportPacket::decode,
-                TeleportPacket::handle);
-        INSTANCE.registerMessage(id++, RemovePacket.class, RemovePacket::encode, RemovePacket::decode,
-                RemovePacket::handle);
-        INSTANCE.registerMessage(id++, UpdatePetPacket.class,
-                UpdatePetPacket::encode, UpdatePetPacket::decode, UpdatePetPacket::handle);
+        INSTANCE.registerMessage(id++, OpenTrackerPacket.class, OpenTrackerPacket::encode, OpenTrackerPacket::decode, OpenTrackerPacket::handle);
+        INSTANCE.registerMessage(id++, TeleportPacket.class, TeleportPacket::encode, TeleportPacket::decode, TeleportPacket::handle);
+        INSTANCE.registerMessage(id++, RemovePacket.class, RemovePacket::encode, RemovePacket::decode, RemovePacket::handle);
+        INSTANCE.registerMessage(id++, UpdatePetPacket.class, UpdatePetPacket::encode, UpdatePetPacket::decode, UpdatePetPacket::handle);
+        INSTANCE.registerMessage(id++, AddPetsToTrackerPacket.class, AddPetsToTrackerPacket::encode, AddPetsToTrackerPacket::decode, AddPetsToTrackerPacket::handle);
     }
 
     @SuppressWarnings("resource")

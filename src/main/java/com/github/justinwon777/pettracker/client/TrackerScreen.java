@@ -4,12 +4,12 @@ import com.github.justinwon777.pettracker.PetTracker;
 import com.github.justinwon777.pettracker.core.PacketHandler;
 import com.github.justinwon777.pettracker.core.PetPositionTracker;
 import com.github.justinwon777.pettracker.core.PetScanner;
-import com.github.justinwon777.pettracker.item.Tracker;
 import com.github.justinwon777.pettracker.networking.RemovePacket;
 import com.github.justinwon777.pettracker.networking.TeleportPacket;
+import com.github.justinwon777.pettracker.util.DeepScanManager;
+import com.github.justinwon777.pettracker.util.DeepScanManagerSlowMode;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -19,19 +19,14 @@ import net.minecraft.client.gui.components.ObjectSelectionList;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.GameRenderer;
-import net.minecraft.core.BlockPos;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.ListTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.util.Mth;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.TamableAnimal;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 
-import javax.annotation.Nullable;
 import java.util.*;
 import java.util.List;
 import java.util.stream.StreamSupport;
@@ -49,6 +44,9 @@ public class TrackerScreen extends Screen {
     private Button teleportButton;
     private Button removeButton;
     private Button scanButton;
+    private Button extScanButton;
+    private Button deepScanButton;
+    private Button deepScanButtonFast;
     private final ItemStack itemStack;
     private final String hand;
     private final double px;
@@ -66,6 +64,8 @@ public class TrackerScreen extends Screen {
         this.pz = z;
     }
 
+
+
     public Font getFont() {
         return this.font;
     }
@@ -82,7 +82,7 @@ public class TrackerScreen extends Screen {
         return this.pz;
     }
 
-    public ItemStack getTrackerItemStack() {
+    public ItemStack getItemStack() {
         return this.itemStack;
     }
 
@@ -134,16 +134,10 @@ public class TrackerScreen extends Screen {
                         }
                     }
 
-                    // Remove all previously scanned (untracked) entries
-                    List<TrackerList.Entry> toRemove = new ArrayList<>();
-                    for (ObjectSelectionList.Entry<?> entry : this.trackerList.children()) {
-                        if (entry instanceof TrackerList.Entry typedEntry && !typedEntry.isTracked()) {
-                            toRemove.add(typedEntry);
-                        }
-                    }
-                    for (TrackerList.Entry entry : toRemove) {
-                        this.trackerList.delete(entry);
-                    }
+//                    trackerList.children().removeIf(e ->
+//                            e instanceof TrackerList.Entry typed && "scan".equals(typed.getSource())
+//                    );
+                    trackerList.children().removeIf(e -> "scan".equals(((TrackerList.Entry) e).getSource()));
 
                     // Scan for new untracked pets and display them
                     List<TrackerList.Entry> untrackedPets = PetScanner.scanLoadedPets(
@@ -153,13 +147,13 @@ public class TrackerScreen extends Screen {
                         this.trackerList.addUntrackedEntry(entry);
                     }
                 })
-                        .bounds(leftPos + 10, topPos + 15, 60, 16)
-                        .tooltip(Tooltip.create(Component.literal("Scan all loaded chunks for pets")))
+                        .bounds(leftPos + 10, topPos + 15, 40, 16)
+                        .tooltip(Tooltip.create(Component.literal("Scan nearby area for pets")))
                         .build()
         );
 
-        this.addRenderableWidget(
-                new Button.Builder(Component.literal("Deep Scan"), btn -> {
+        this.extScanButton = this.addRenderableWidget(
+                new Button.Builder(Component.literal("Ext. Scan"), btn -> {
                     Set<UUID> alreadyTracked = new HashSet<>();
                     for (ObjectSelectionList.Entry<?> entry : this.trackerList.children()) {
                         if (entry instanceof TrackerList.Entry typed && typed.isTracked()) {
@@ -168,13 +162,10 @@ public class TrackerScreen extends Screen {
                     }
 
                     // Clean up previously added global pets
-                    List<TrackerList.Entry> toRemove = new ArrayList<>();
-                    for (ObjectSelectionList.Entry<?> entry : this.trackerList.children()) {
-                        if (entry instanceof TrackerList.Entry typed && !typed.isTracked()) {
-                            toRemove.add(typed);
-                        }
-                    }
-                    toRemove.forEach(this.trackerList::delete);
+//                    trackerList.children().removeIf(e ->
+//                            e instanceof TrackerList.Entry typed && "extscan".equals(typed.getSource())
+//                    );
+                    trackerList.children().removeIf(e -> "extscan".equals(((TrackerList.Entry) e).getSource()));
 
                     List<TrackerList.Entry> found = PetScanner.scanAllPetsInCurrentDimension(
                             alreadyTracked, this, this.trackerList.getWidth(), this.trackerList);
@@ -183,8 +174,74 @@ public class TrackerScreen extends Screen {
                         this.trackerList.addUntrackedEntry(e);
                     }
                 })
-                        .bounds(leftPos + 100, topPos + 15, 60, 16)
-                        .tooltip(Tooltip.create(Component.literal("Scan all loaded and unloaded chunks for pets in this dimension (singleplayer only)")))
+                        .bounds(leftPos + 50, topPos + 15, 60, 16)
+                        .tooltip(Tooltip.create(Component.literal("Scan loaded chunks for pets.")))
+                        .build()
+        );
+
+        this.deepScanButton = this.addRenderableWidget(
+                new Button.Builder(Component.literal("Deep Scan"), btn -> {
+                    if (this.minecraft != null && this.minecraft.player != null && this.minecraft.level != null) {
+                        if (!this.minecraft.isSingleplayer()) {
+                            this.minecraft.player.sendSystemMessage(Component.literal("Deep Scan only works in singleplayer."));
+                            return;
+                        }
+
+//                        trackerList.children().removeIf(e ->
+//                                e instanceof TrackerList.Entry typed && "deepscan".equals(typed.getSource())
+//                        );
+                        trackerList.children().removeIf(e -> "deepscan".equals(((TrackerList.Entry) e).getSource()));
+
+                        ServerPlayer serverPlayer = this.minecraft.getSingleplayerServer()
+                                .getPlayerList()
+                                .getPlayer(this.minecraft.player.getUUID());
+
+                        if (serverPlayer != null) {
+                            this.minecraft.getSingleplayerServer().execute(() -> {
+                                //DeepScanManagerSlowMode.start(this.minecraft.getSingleplayerServer().getLevel(this.minecraft.level.dimension()), serverPlayer, 30);
+                                DeepScanManagerSlowMode.start(
+                                        this.minecraft.getSingleplayerServer().getLevel(this.minecraft.level.dimension()),
+                                        serverPlayer,
+                                        16,
+                                        this,
+                                        this.trackerList
+                                );
+                            });
+                        }
+
+                    }
+                })
+                        .bounds(leftPos + 110, topPos + 15, 60, 16)
+                        .tooltip(Tooltip.create(Component.literal("Scan unloaded chunks for pets - this is slow but safe for servers! (and might generate chunks so backup your world!)")))
+                        .build()
+        );
+        this.deepScanButtonFast = this.addRenderableWidget(
+                new Button.Builder(Component.literal("Fast S."), btn -> {
+                    if (this.minecraft != null && this.minecraft.player != null && this.minecraft.level != null) {
+                        if (!this.minecraft.isSingleplayer()) {
+                            this.minecraft.player.sendSystemMessage(Component.literal("Deep Scan only works in singleplayer."));
+                            return;
+                        }
+
+//                        trackerList.children().removeIf(e ->
+//                                e instanceof TrackerList.Entry typed && "deepscan".equals(typed.getSource())
+//                        );
+                        trackerList.children().removeIf(e -> "deepscan".equals(((TrackerList.Entry) e).getSource()));
+
+                        ServerPlayer serverPlayer = this.minecraft.getSingleplayerServer()
+                                .getPlayerList()
+                                .getPlayer(this.minecraft.player.getUUID());
+
+                        if (serverPlayer != null) {
+                            this.minecraft.getSingleplayerServer().execute(() -> {
+                                DeepScanManager.start(this.minecraft.getSingleplayerServer().getLevel(this.minecraft.level.dimension()), serverPlayer, 16);
+                            });
+                        }
+
+                    }
+                })
+                        .bounds(leftPos + 110, topPos + 15, 60, 16)
+                        .tooltip(Tooltip.create(Component.literal("Scan unloaded chunks for pets (same as Deep Scan but no queue) - this is fast but bad for servers! (and might generate chunks so backup your world!)")))
                         .build()
         );
 

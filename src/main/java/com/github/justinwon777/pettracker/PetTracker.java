@@ -2,6 +2,7 @@ package com.github.justinwon777.pettracker;
 
 import com.github.justinwon777.pettracker.core.ItemInit;
 import com.github.justinwon777.pettracker.core.PacketHandler;
+import com.github.justinwon777.pettracker.util.CommandInit;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fml.common.Mod;
