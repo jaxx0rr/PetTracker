@@ -24,6 +24,7 @@ public class PacketHandler {
         INSTANCE.registerMessage(id++, RemovePacket.class, RemovePacket::encode, RemovePacket::decode, RemovePacket::handle);
         INSTANCE.registerMessage(id++, UpdatePetPacket.class, UpdatePetPacket::encode, UpdatePetPacket::decode, UpdatePetPacket::handle);
         INSTANCE.registerMessage(id++, AddPetsToTrackerPacket.class, AddPetsToTrackerPacket::encode, AddPetsToTrackerPacket::decode, AddPetsToTrackerPacket::handle);
+        INSTANCE.registerMessage(id++, RefreshTrackerListPacket.class, RefreshTrackerListPacket::encode, RefreshTrackerListPacket::decode, RefreshTrackerListPacket::handle);
     }
 
     @SuppressWarnings("resource")

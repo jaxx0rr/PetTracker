@@ -15,6 +15,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.ObjectSelectionList;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
@@ -47,11 +48,17 @@ public class TrackerScreen extends Screen {
     private Button extScanButton;
     private Button deepScanButton;
     private Button deepScanButtonFast;
+    private Button stopScanButton;
     private final ItemStack itemStack;
     private final String hand;
     private final double px;
     private final double py;
     private final double pz;
+
+    private boolean deepScanRunning = false;
+
+    private static boolean deepScanRunningGlobal = false;
+
 
     public TrackerScreen(ItemStack tracker, String hand, double x, double y, double z) {
         super(tracker.getItem().getDescription());
@@ -64,7 +71,9 @@ public class TrackerScreen extends Screen {
         this.pz = z;
     }
 
-
+    public TrackerList getTrackerList() {
+        return this.trackerList;
+    }
 
     public Font getFont() {
         return this.font;
@@ -98,6 +107,168 @@ public class TrackerScreen extends Screen {
 
         this.trackerList = addWidget(new TrackerList(this.minecraft, this.itemStack, this, this.topPos));
 
+
+
+        this.scanButton = this.addRenderableWidget(
+                new Button.Builder(Component.literal("Area Scan"), btn -> {
+
+                    trackerList.children().removeIf(e -> "scan".equals(((TrackerList.Entry) e).getSource()));
+
+                    Set<UUID> alreadyTracked = new HashSet<>();
+                    // Collect tracked UUIDs
+                    for (ObjectSelectionList.Entry<?> entry : this.trackerList.children()) {
+                        if (entry instanceof TrackerList.Entry typedEntry && typedEntry.isTracked()) {
+                            alreadyTracked.add(typedEntry.getUuid());
+                        }
+                    }
+
+                    // Scan for new untracked pets and display them
+                    List<TrackerList.Entry> untrackedPets = PetScanner.scanLoadedPets(
+                            alreadyTracked, this, this.trackerList.getWidth(), this.trackerList);
+
+                    for (TrackerList.Entry entry : untrackedPets) {
+                        this.trackerList.addUntrackedEntry(entry);
+                    }
+                })
+                        .bounds(leftPos + 10, topPos + 15, 60, 16)
+                        .tooltip(Tooltip.create(Component.literal("Scan nearby area for pets")))
+                        .build()
+        );
+
+        this.extScanButton = this.addRenderableWidget(
+                new Button.Builder(Component.literal("Loaded Chunks"), btn -> {
+
+                    trackerList.children().removeIf(e -> "extscan".equals(((TrackerList.Entry) e).getSource()));
+
+                    Set<UUID> alreadyTracked = new HashSet<>();
+                    for (ObjectSelectionList.Entry<?> entry : this.trackerList.children()) {
+                        if (entry instanceof TrackerList.Entry typed && typed.isTracked()) {
+                            alreadyTracked.add(typed.getUuid());
+                        }
+                    }
+
+                    List<TrackerList.Entry> found = PetScanner.scanAllPetsInCurrentDimension(
+                            alreadyTracked, this, this.trackerList.getWidth(), this.trackerList);
+
+                    for (TrackerList.Entry e : found) {
+                        this.trackerList.addUntrackedEntry(e);
+                    }
+                })
+                        .bounds(leftPos + 75, topPos + 15, 90, 16)
+                        .tooltip(Tooltip.create(Component.literal("Scan loaded chunks for pets.")))
+                        .build()
+        );
+
+        EditBox ringInput = new EditBox(this.font, this.leftPos + 11, this.topPos + 180, 20, 16, Component.literal("Radius"));
+        ringInput.setMaxLength(2);         // Allow up to 2 digits
+        ringInput.setValue("20");            // Default
+        this.addRenderableWidget(ringInput);
+
+        this.deepScanButton = this.addRenderableWidget(
+                new Button.Builder(Component.literal("Deep Scan"), btn -> {
+                    if (this.minecraft != null && this.minecraft.player != null && this.minecraft.level != null) {
+
+                        trackerList.children().removeIf(e -> "deepscan".equals(((TrackerList.Entry) e).getSource()));
+
+                        deepScanRunning = true;
+                        deepScanRunningGlobal = true;
+                        deepScanButton.visible = false;
+                        deepScanButtonFast.visible = false;
+                        stopScanButton.visible = true;
+
+                        ServerPlayer serverPlayer = this.minecraft.getSingleplayerServer()
+                                .getPlayerList()
+                                .getPlayer(this.minecraft.player.getUUID());
+
+                        if (serverPlayer != null) {
+                            this.minecraft.getSingleplayerServer().execute(() -> {
+
+                                int radius;
+                                try {
+                                    radius = Integer.parseInt(ringInput.getValue());
+
+                                    if (radius < 10) radius = 10;
+                                    if (radius > 500) radius = 500;
+
+                                } catch (NumberFormatException e) {
+                                    radius = 20; // fallback default
+                                }
+
+                                DeepScanManagerSlowMode.start(
+                                        this.minecraft.getSingleplayerServer().getLevel(this.minecraft.level.dimension()),
+                                        serverPlayer,
+                                        radius,
+                                        this,
+                                        this.trackerList
+                                );
+                            });
+                        }
+
+                    }
+                })
+                        .bounds(leftPos + 35, topPos + 180, 60, 16)
+                        .tooltip(Tooltip.create(Component.literal("Scan unloaded chunks for pets (in radius) - this is slow but safe for servers! (and might generate chunks so backup your world!)")))
+                        .build()
+        );
+
+        this.deepScanButtonFast = this.addRenderableWidget(
+                new Button.Builder(Component.literal("Fast Scan"), btn -> {
+                    if (this.minecraft != null && this.minecraft.player != null && this.minecraft.level != null) {
+
+                        trackerList.children().removeIf(e -> "deepscan".equals(((TrackerList.Entry) e).getSource()));
+
+                        deepScanRunning = true;
+                        deepScanRunningGlobal = true;
+                        deepScanButton.visible = false;
+                        deepScanButtonFast.visible = false;
+                        stopScanButton.visible = true;
+
+                        ServerPlayer serverPlayer = this.minecraft.getSingleplayerServer()
+                                .getPlayerList()
+                                .getPlayer(this.minecraft.player.getUUID());
+
+                        if (serverPlayer != null) {
+                            this.minecraft.getSingleplayerServer().execute(() -> {
+
+                                int radius;
+                                try {
+                                    radius = Integer.parseInt(ringInput.getValue());
+
+                                    if (radius < 10) radius = 10;
+                                    if (radius > 500) radius = 500;
+
+                                } catch (NumberFormatException e) {
+                                    radius = 20; // fallback default
+                                }
+
+                                DeepScanManager.start(
+                                        this.minecraft.getSingleplayerServer().getLevel(this.minecraft.level.dimension()),
+                                        serverPlayer,
+                                        radius,
+                                        this,
+                                        this.trackerList
+                                );
+
+                            });
+                        }
+
+                    }
+                })
+                        .bounds(leftPos + 100, topPos + 180, 60, 16)
+                        .tooltip(Tooltip.create(Component.literal("Scan unloaded chunks for pets (same as Deep Scan but no queue so don't use a radius bigger than 100 if your pc is slow) - this is fast but bad for servers! (and also might generate chunks so backup your world!)")))
+                        .build()
+        );
+
+        this.stopScanButton = this.addRenderableWidget(
+                new Button.Builder(Component.literal("Stop Deep Scan"), btn -> {
+                    DeepScanManagerSlowMode.cancel(); // You must implement cancel logic there
+                })
+                        .bounds(leftPos + 35, topPos + 180, 125, 16) // Wider button
+                        .tooltip(Tooltip.create(Component.literal("Cancel current deep scan in progress")))
+                        .build()
+        );
+        this.stopScanButton.visible = false; // Hide by default
+
         this.teleportButton = addRenderableWidget(
                 new Button.Builder(Component.literal("Teleport"), btn -> {
                     TrackerList.Entry entry = this.trackerList.getSelected();
@@ -113,7 +284,6 @@ public class TrackerScreen extends Screen {
                 new Button.Builder(Component.literal("Remove"), btn -> {
                     TrackerList.Entry entry = this.trackerList.getSelected();
                     if (entry != null) {
-                        //PacketHandler.INSTANCE.sendToServer(new RemovePacket(entry.uuid, this.itemStack, this.hand));
                         PacketHandler.INSTANCE.sendToServer(new RemovePacket(entry.getUuid(), this.itemStack, this.hand));
                         this.trackerList.delete(entry);
                         updateRemoveButtonStatus(false);
@@ -123,128 +293,11 @@ public class TrackerScreen extends Screen {
                         .build()
         );
 
-        this.scanButton = this.addRenderableWidget(
-                new Button.Builder(Component.literal("Scan"), btn -> {
-                    Set<UUID> alreadyTracked = new HashSet<>();
-
-                    // Collect tracked UUIDs
-                    for (ObjectSelectionList.Entry<?> entry : this.trackerList.children()) {
-                        if (entry instanceof TrackerList.Entry typedEntry && typedEntry.isTracked()) {
-                            alreadyTracked.add(typedEntry.getUuid());
-                        }
-                    }
-
-//                    trackerList.children().removeIf(e ->
-//                            e instanceof TrackerList.Entry typed && "scan".equals(typed.getSource())
-//                    );
-                    trackerList.children().removeIf(e -> "scan".equals(((TrackerList.Entry) e).getSource()));
-
-                    // Scan for new untracked pets and display them
-                    List<TrackerList.Entry> untrackedPets = PetScanner.scanLoadedPets(
-                            alreadyTracked, this, this.trackerList.getWidth(), this.trackerList);
-
-                    for (TrackerList.Entry entry : untrackedPets) {
-                        this.trackerList.addUntrackedEntry(entry);
-                    }
-                })
-                        .bounds(leftPos + 10, topPos + 15, 40, 16)
-                        .tooltip(Tooltip.create(Component.literal("Scan nearby area for pets")))
-                        .build()
-        );
-
-        this.extScanButton = this.addRenderableWidget(
-                new Button.Builder(Component.literal("Ext. Scan"), btn -> {
-                    Set<UUID> alreadyTracked = new HashSet<>();
-                    for (ObjectSelectionList.Entry<?> entry : this.trackerList.children()) {
-                        if (entry instanceof TrackerList.Entry typed && typed.isTracked()) {
-                            alreadyTracked.add(typed.getUuid());
-                        }
-                    }
-
-                    // Clean up previously added global pets
-//                    trackerList.children().removeIf(e ->
-//                            e instanceof TrackerList.Entry typed && "extscan".equals(typed.getSource())
-//                    );
-                    trackerList.children().removeIf(e -> "extscan".equals(((TrackerList.Entry) e).getSource()));
-
-                    List<TrackerList.Entry> found = PetScanner.scanAllPetsInCurrentDimension(
-                            alreadyTracked, this, this.trackerList.getWidth(), this.trackerList);
-
-                    for (TrackerList.Entry e : found) {
-                        this.trackerList.addUntrackedEntry(e);
-                    }
-                })
-                        .bounds(leftPos + 50, topPos + 15, 60, 16)
-                        .tooltip(Tooltip.create(Component.literal("Scan loaded chunks for pets.")))
-                        .build()
-        );
-
-        this.deepScanButton = this.addRenderableWidget(
-                new Button.Builder(Component.literal("Deep Scan"), btn -> {
-                    if (this.minecraft != null && this.minecraft.player != null && this.minecraft.level != null) {
-                        if (!this.minecraft.isSingleplayer()) {
-                            this.minecraft.player.sendSystemMessage(Component.literal("Deep Scan only works in singleplayer."));
-                            return;
-                        }
-
-//                        trackerList.children().removeIf(e ->
-//                                e instanceof TrackerList.Entry typed && "deepscan".equals(typed.getSource())
-//                        );
-                        trackerList.children().removeIf(e -> "deepscan".equals(((TrackerList.Entry) e).getSource()));
-
-                        ServerPlayer serverPlayer = this.minecraft.getSingleplayerServer()
-                                .getPlayerList()
-                                .getPlayer(this.minecraft.player.getUUID());
-
-                        if (serverPlayer != null) {
-                            this.minecraft.getSingleplayerServer().execute(() -> {
-                                //DeepScanManagerSlowMode.start(this.minecraft.getSingleplayerServer().getLevel(this.minecraft.level.dimension()), serverPlayer, 30);
-                                DeepScanManagerSlowMode.start(
-                                        this.minecraft.getSingleplayerServer().getLevel(this.minecraft.level.dimension()),
-                                        serverPlayer,
-                                        16,
-                                        this,
-                                        this.trackerList
-                                );
-                            });
-                        }
-
-                    }
-                })
-                        .bounds(leftPos + 110, topPos + 15, 60, 16)
-                        .tooltip(Tooltip.create(Component.literal("Scan unloaded chunks for pets - this is slow but safe for servers! (and might generate chunks so backup your world!)")))
-                        .build()
-        );
-        this.deepScanButtonFast = this.addRenderableWidget(
-                new Button.Builder(Component.literal("Fast S."), btn -> {
-                    if (this.minecraft != null && this.minecraft.player != null && this.minecraft.level != null) {
-                        if (!this.minecraft.isSingleplayer()) {
-                            this.minecraft.player.sendSystemMessage(Component.literal("Deep Scan only works in singleplayer."));
-                            return;
-                        }
-
-//                        trackerList.children().removeIf(e ->
-//                                e instanceof TrackerList.Entry typed && "deepscan".equals(typed.getSource())
-//                        );
-                        trackerList.children().removeIf(e -> "deepscan".equals(((TrackerList.Entry) e).getSource()));
-
-                        ServerPlayer serverPlayer = this.minecraft.getSingleplayerServer()
-                                .getPlayerList()
-                                .getPlayer(this.minecraft.player.getUUID());
-
-                        if (serverPlayer != null) {
-                            this.minecraft.getSingleplayerServer().execute(() -> {
-                                DeepScanManager.start(this.minecraft.getSingleplayerServer().getLevel(this.minecraft.level.dimension()), serverPlayer, 16);
-                            });
-                        }
-
-                    }
-                })
-                        .bounds(leftPos + 110, topPos + 15, 60, 16)
-                        .tooltip(Tooltip.create(Component.literal("Scan unloaded chunks for pets (same as Deep Scan but no queue) - this is fast but bad for servers! (and might generate chunks so backup your world!)")))
-                        .build()
-        );
-
+        if (deepScanRunningGlobal) {
+            deepScanButton.visible = false;
+            deepScanButtonFast.visible = false;
+            stopScanButton.visible = true;
+        }
 
         updateTeleportButtonStatus(false);
         updateRemoveButtonStatus(false);
@@ -262,10 +315,8 @@ public class TrackerScreen extends Screen {
                         .orElse(null);
 
                 if (entity != null) {
-                    //System.out.println("[UPDATE] Found untracked entity: " + e.getUuid());
                     PetPositionTracker.updatePet(entity);
                 } else {
-                    //System.out.println("[MISS] Could NOT find entity: " + e.getUuid());
                 }
             }
         }
@@ -335,6 +386,14 @@ public class TrackerScreen extends Screen {
 
     public boolean isPauseScreen() {
         return false;
+    }
+
+    public void onScanFinished() {
+        deepScanRunning = false;
+        deepScanRunningGlobal = false;
+        deepScanButton.visible = true;
+        deepScanButtonFast.visible = true;
+        stopScanButton.visible = false;
     }
 
 }

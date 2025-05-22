@@ -1,5 +1,6 @@
 package com.github.justinwon777.pettracker.networking;
 
+import com.github.justinwon777.pettracker.core.PacketHandler;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.network.FriendlyByteBuf;
@@ -8,6 +9,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.network.NetworkEvent;
+import net.minecraftforge.network.PacketDistributor;
 
 import java.util.Objects;
 import java.util.UUID;
@@ -72,5 +74,10 @@ public class RemovePacket {
         });
         context.get().setPacketHandled(true);
     }
+
+
+
+
+
 
 }

@@ -67,13 +67,13 @@ public class CommandInit {
                                     ServerPlayer player = ctx.getSource().getPlayerOrException();
                                     ServerLevel level = player.serverLevel();
                                     int rings = IntegerArgumentType.getInteger(ctx, "rings");
-                                    DeepScanManager.start(level, player, rings);
+                                    //DeepScanManager.start(level, player, rings);
                                     return 1;
                                 }))
                         .executes(ctx -> {
                             ServerPlayer player = ctx.getSource().getPlayerOrException();
                             ServerLevel level = player.serverLevel();
-                            DeepScanManager.start(level, player, 30); // default to 30 rings
+                            //DeepScanManager.start(level, player, 30); // default to 30 rings
                             return 1;
                         })
                 )

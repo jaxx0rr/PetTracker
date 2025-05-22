@@ -65,6 +65,45 @@ public class TrackerList extends ObjectSelectionList<TrackerList.Entry> {
         }
     }
 
+    public void addEntriesFromNBT() {
+        ItemStack tracker = this.screen.getItemStack();
+        CompoundTag tag = tracker.getOrCreateTag();
+        if (!tag.contains(Tracker.TRACKING)) return;
+
+        ListTag listTag = tag.getList(Tracker.TRACKING, 10);
+        for (int i = 0; i < listTag.size(); i++) {
+            CompoundTag entityTag = listTag.getCompound(i);
+            UUID uuid = entityTag.getUUID("uuid");
+            String source = entityTag.getString("source");
+
+            Entity entity = StreamSupport.stream(
+                            Minecraft.getInstance().level.entitiesForRendering().spliterator(), false)
+                    .filter(e -> uuid.equals(e.getUUID()))
+                    .findFirst()
+                    .orElse(null); // ✅ working UUID match
+
+
+            if (entity instanceof TamableAnimal tamable) {
+                String name = tamable.getDisplayName().getString();
+                BlockPos pos = entity.blockPosition();
+                boolean active = tamable.isAlive();
+                this.addEntry(new Entry(name, pos.getX(), pos.getY(), pos.getZ(), active, uuid, source.equals("tracked"), this.screen, this.width, this, source));
+            } else {
+                String name = entityTag.getString("name");
+                int x = entityTag.getInt("x");
+                int y = entityTag.getInt("y");
+                int z = entityTag.getInt("z");
+                boolean active = entityTag.getBoolean("active");
+                this.addEntry(new Entry(name, x, y, z, active, uuid, false, this.screen, this.width, this, source));
+            }
+        }
+    }
+
+
+    public void refresh() {
+        this.children().clear();
+        this.addEntriesFromNBT();
+    }
 
 
     public void setSelected(@Nullable TrackerList.Entry pSelected) {
@@ -75,7 +114,6 @@ public class TrackerList extends ObjectSelectionList<TrackerList.Entry> {
         }
 
     }
-
 
     protected int getScrollbarPosition() {
         return super.getScrollbarPosition() - 45;
@@ -106,8 +144,32 @@ public class TrackerList extends ObjectSelectionList<TrackerList.Entry> {
     }
 
     public void delete(Entry entry) {
+        // Remove from visual list
         this.removeEntry(entry);
+
+        // Remove from itemstack's NBT on client
+        ItemStack tracker = this.screen.getItemStack();
+        CompoundTag tag = tracker.getOrCreateTag();
+
+        if (tag.contains(Tracker.TRACKING)) {
+            ListTag list = tag.getList(Tracker.TRACKING, 10);
+            ListTag newList = new ListTag();
+
+            for (int i = 0; i < list.size(); i++) {
+                CompoundTag t = list.getCompound(i);
+                if (!t.getUUID("uuid").equals(entry.getUuid())) {
+                    newList.add(t); // keep others
+                }
+            }
+
+            tag.put(Tracker.TRACKING, newList);
+            tracker.setTag(tag);
+        }
+
+        this.refresh(); // now it reflects the real NBT
     }
+
+
 
     public void addUntrackedEntry(TrackerList.Entry entry) {
         addEntry(entry); // ✅ this is the real method from AbstractSelectionList
@@ -169,19 +231,19 @@ public class TrackerList extends ObjectSelectionList<TrackerList.Entry> {
             switch (this.source) {
                 case "scan" -> {
                     color = 0xFF6666;     // Red: nearby but untracked
-                    label = " [untracked]";
+                    label = " \uD83E\uDDED";
                 }
                 case "extscan" -> {
                     color = 0x3399FF;     // Blue: far but loaded
-                    label = " 📡 [far chunk]";
+                    label = " \uD83D\uDCE1";
                 }
                 case "deepscan" -> {
                     color = 0x000000;     // Black: from unloaded chunks
-                    label = " 🛰️ [deep scan]";
+                    label = " \uD83D\uDEF0";
                 }
                 default -> { // "tracked" or anything unknown
                     color = 0xAAAAAA;     // Gray: default tracked pets
-                    label = "";
+                    label = " \uD83D\uDCCC";
                 }
             }
 
