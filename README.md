@@ -1,14 +1,11 @@
 # 🐾 PetTracker
 
-this is a port with some upgrades 
+this is a port of https://github.com/justinwon777/PetTracker/
 
-it was originally made by https://github.com/justinwon777
-
-https://github.com/justinwon777/PetTracker/
+the original did not have any of the scan features
 
 **PetTracker** is a Minecraft Forge mod for **1.20.1** that lets you track your tamed pets with a special item. Ideal for players who frequently lose their cats, dogs, or other tameable companions.
 
-WIP (im currently 2025.05.22 still working on it 24/7)
 ---
 
 ## 📦 Features
