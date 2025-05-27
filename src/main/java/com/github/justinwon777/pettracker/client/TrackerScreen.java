@@ -393,4 +393,5 @@ public class TrackerScreen extends Screen {
         if (this.stopScanButton != null) this.stopScanButton.visible = false;
     }
 
+
 }
