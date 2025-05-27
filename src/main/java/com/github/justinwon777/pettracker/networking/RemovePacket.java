@@ -50,34 +50,29 @@ public class RemovePacket {
     public static void handle(RemovePacket msg, Supplier<NetworkEvent.Context> context) {
         context.get().enqueueWork(() -> {
             ServerPlayer player = context.get().getSender();
-            if (player != null && player.level() instanceof ServerLevel) {
-                ItemStack tracker = msg.getTracker();
-                InteractionHand hand;
-                if (Objects.equals(msg.getHand(), "m")) {
-                    hand = InteractionHand.MAIN_HAND;
-                } else {
-                    hand = InteractionHand.OFF_HAND;
-                }
-                CompoundTag tag = tracker.getTag();
-                ListTag listTag = tag.getList(TRACKING, 10);
-                int i = 0;
-                while (i < listTag.size()) {
-                    CompoundTag entityTag = listTag.getCompound(i);
-                    if (entityTag.getUUID("uuid").equals(msg.getUUID())) {
-                        listTag.remove(i);
-                        player.setItemInHand(hand, tracker);
-                        break;
-                    }
-                    i++;
+            if (player == null) return;
+
+            InteractionHand hand = msg.getHand().equals("m") ? InteractionHand.MAIN_HAND : InteractionHand.OFF_HAND;
+            ItemStack tracker = player.getItemInHand(hand);
+
+            if (!tracker.hasTag() || !tracker.getTag().contains(TRACKING)) return;
+
+            CompoundTag tag = tracker.getTag();
+            ListTag listTag = tag.getList(TRACKING, 10);
+
+            for (int i = 0; i < listTag.size(); i++) {
+                CompoundTag entityTag = listTag.getCompound(i);
+                if (entityTag.getUUID("uuid").equals(msg.getUUID())) {
+                    listTag.remove(i);
+                    break;
                 }
             }
+
+            tag.put(TRACKING, listTag);
+            tracker.setTag(tag);
+            player.setItemInHand(hand, tracker);
         });
         context.get().setPacketHandled(true);
     }
-
-
-
-
-
 
 }

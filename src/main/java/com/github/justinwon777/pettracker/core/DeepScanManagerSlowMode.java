@@ -1,10 +1,12 @@
-package com.github.justinwon777.pettracker.util;
+package com.github.justinwon777.pettracker.core;
 
 import com.github.justinwon777.pettracker.client.TrackerList;
 import com.github.justinwon777.pettracker.client.TrackerScreen;
-import com.github.justinwon777.pettracker.core.PacketHandler;
 import com.github.justinwon777.pettracker.item.Tracker;
 import com.github.justinwon777.pettracker.networking.RefreshTrackerListPacket;
+import com.github.justinwon777.pettracker.networking.SyncTrackerStackPacket;
+import com.github.justinwon777.pettracker.util.DelayedTaskManager;
+import com.github.justinwon777.pettracker.util.SavedChunkFinder;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -61,13 +63,11 @@ public class DeepScanManagerSlowMode {
             for (ChunkPos pos : ringChunks) {
                 if (!savedChunkSet.contains(pos)) {
                     String log = "[DeepScan] Skipping " + pos + " – not in saved chunks";
-                    System.out.println(log);
                     player.sendSystemMessage(Component.literal(log));
                     continue;
                 }
                 if (level.hasChunk(pos.x, pos.z)) {
                     String log = "[DeepScan] Skipping " + pos + " – already loaded";
-                    System.out.println(log);
                     player.sendSystemMessage(Component.literal(log));
                     continue;
                 }
@@ -83,25 +83,29 @@ public class DeepScanManagerSlowMode {
             ring++;
         }
 
-        if (trackerScreen != null) {
-            ItemStack trackerStack = trackerScreen.getItemStack();
-            CompoundTag tag = trackerStack.getOrCreateTag();
-            ListTag original = tag.contains(Tracker.TRACKING) ? tag.getList(Tracker.TRACKING, 10) : new ListTag();
-            ListTag cleaned = new ListTag();
+        InteractionHand hand = InteractionHand.MAIN_HAND; // or pass from packet if needed
+        ItemStack trackerStack = player.getItemInHand(hand);
 
-            for (int i = 0; i < original.size(); i++) {
-                CompoundTag entry = original.getCompound(i);
-                if (!"deepscan".equals(entry.getString("source"))) {
-                    cleaned.add(entry);
-                }
+        CompoundTag tag = trackerStack.getOrCreateTag();
+        ListTag original = tag.contains(Tracker.TRACKING) ? tag.getList(Tracker.TRACKING, 10) : new ListTag();
+        ListTag cleaned = new ListTag();
+
+        for (int i = 0; i < original.size(); i++) {
+            CompoundTag entry = original.getCompound(i);
+            if (!"deepscan".equals(entry.getString("source"))) {
+                cleaned.add(entry);
             }
-
-            tag.put(Tracker.TRACKING, cleaned);
-            trackerStack.setTag(tag);
-
-            InteractionHand hand = trackerScreen.getHandKey().equals("m") ? InteractionHand.MAIN_HAND : InteractionHand.OFF_HAND;
-            player.setItemInHand(hand, trackerStack);
         }
+
+        tag.put(Tracker.TRACKING, cleaned);
+        trackerStack.setTag(tag);
+        player.setItemInHand(hand, trackerStack);
+
+        PacketHandler.INSTANCE.send(PacketDistributor.PLAYER.with(() -> player),
+                new SyncTrackerStackPacket(trackerStack, hand == InteractionHand.MAIN_HAND ? "m" : "o"));
+
+        PacketHandler.INSTANCE.send(PacketDistributor.PLAYER.with(() -> player),
+                new RefreshTrackerListPacket(false));
 
         processNextChunk(level, player);
     }
@@ -116,7 +120,6 @@ public class DeepScanManagerSlowMode {
         }
 
         if (scanQueue.isEmpty()) {
-
             PacketHandler.INSTANCE.send(PacketDistributor.PLAYER.with(() -> player),
                     new RefreshTrackerListPacket(true)); // 🔥 Only here, send true
             player.sendSystemMessage(Component.literal("[DeepScan] Finished scanning " + scanned + " chunks."));
@@ -128,7 +131,12 @@ public class DeepScanManagerSlowMode {
         int currentRing = chunkToRingMap.getOrDefault(pos, -1);
         if (currentRing != lastReportedRing) {
             lastReportedRing = currentRing;
-            player.sendSystemMessage(Component.literal("[DeepScan] Processing ring " + currentRing));
+
+            long count = chunkToRingMap.entrySet().stream()
+                    .filter(e -> e.getValue() == currentRing)
+                    .count();
+
+            player.sendSystemMessage(Component.literal("[DeepScan] Processing ring " + currentRing + " (" + count + " chunks)"));
         }
 
         level.setChunkForced(pos.x, pos.z, true);
@@ -145,34 +153,33 @@ public class DeepScanManagerSlowMode {
                         petCount++;
                         String message = "[DeepScan] Pet at " + pet.blockPosition() + " in chunk " + pos.x + ", " + pos.z;
                         player.sendSystemMessage(Component.literal(message));
-                        System.out.println(message);
 
-                        if (trackerScreen != null) {
-                            ItemStack trackerStack = trackerScreen.getItemStack();
-                            CompoundTag tag = trackerStack.getOrCreateTag();
-                            ListTag trackingList = tag.contains(Tracker.TRACKING) ? tag.getList(Tracker.TRACKING, 10) : new ListTag();
+                        InteractionHand hand = InteractionHand.MAIN_HAND;
+                        ItemStack trackerStack = player.getItemInHand(hand);
 
-                            CompoundTag petTag = new CompoundTag();
-                            petTag.putUUID("uuid", pet.getUUID());
-                            petTag.putString("name", pet.getDisplayName().getString());
-                            petTag.putInt("x", (int) pet.getX());
-                            petTag.putInt("y", (int) pet.getY());
-                            petTag.putInt("z", (int) pet.getZ());
-                            petTag.putBoolean("active", true);
-                            petTag.putString("source", "deepscan");
-                            trackingList.add(petTag);
+                        CompoundTag tag = trackerStack.getOrCreateTag();
+                        ListTag trackingList = tag.contains(Tracker.TRACKING) ? tag.getList(Tracker.TRACKING, 10) : new ListTag();
 
-                            tag.put(Tracker.TRACKING, trackingList);
-                            trackerStack.setTag(tag);
+                        CompoundTag petTag = new CompoundTag();
+                        petTag.putUUID("uuid", pet.getUUID());
+                        petTag.putString("name", pet.getDisplayName().getString());
+                        petTag.putInt("x", (int) pet.getX());
+                        petTag.putInt("y", (int) pet.getY());
+                        petTag.putInt("z", (int) pet.getZ());
+                        petTag.putBoolean("active", true);
+                        petTag.putString("source", "deepscan");
 
-                            InteractionHand hand = trackerScreen.getHandKey().equals("m") ? InteractionHand.MAIN_HAND : InteractionHand.OFF_HAND;
-                            player.setItemInHand(hand, trackerStack);
+                        trackingList.add(petTag);
+                        tag.put(Tracker.TRACKING, trackingList);
+                        trackerStack.setTag(tag);
+                        player.setItemInHand(hand, trackerStack);
 
-                            ServerPlayer serverPlayer = (ServerPlayer) player;
-                            PacketHandler.INSTANCE.send(PacketDistributor.PLAYER.with(() -> serverPlayer),
-                                    new RefreshTrackerListPacket(false));
+                        PacketHandler.INSTANCE.send(PacketDistributor.PLAYER.with(() -> player),
+                                new SyncTrackerStackPacket(trackerStack, hand == InteractionHand.MAIN_HAND ? "m" : "o"));
 
-                        }
+                        PacketHandler.INSTANCE.send(PacketDistributor.PLAYER.with(() -> player),
+                                new RefreshTrackerListPacket(false));
+
                     }
                 }
 

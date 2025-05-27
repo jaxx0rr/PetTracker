@@ -25,6 +25,22 @@ public class PacketHandler {
         INSTANCE.registerMessage(id++, UpdatePetPacket.class, UpdatePetPacket::encode, UpdatePetPacket::decode, UpdatePetPacket::handle);
         INSTANCE.registerMessage(id++, AddPetsToTrackerPacket.class, AddPetsToTrackerPacket::encode, AddPetsToTrackerPacket::decode, AddPetsToTrackerPacket::handle);
         INSTANCE.registerMessage(id++, RefreshTrackerListPacket.class, RefreshTrackerListPacket::encode, RefreshTrackerListPacket::decode, RefreshTrackerListPacket::handle);
+        INSTANCE.registerMessage(id++, SyncTrackerStackPacket.class,
+                SyncTrackerStackPacket::encode,
+                SyncTrackerStackPacket::decode,
+                SyncTrackerStackPacket::handle);
+        INSTANCE.registerMessage(id++, StartDeepScanPacket.class,
+                StartDeepScanPacket::encode,
+                StartDeepScanPacket::decode,
+                StartDeepScanPacket::handle);
+        INSTANCE.registerMessage(id++, CancelDeepScanPacket.class,
+                CancelDeepScanPacket::encode,
+                CancelDeepScanPacket::decode,
+                CancelDeepScanPacket::handle);
+        INSTANCE.registerMessage(id++, RequestPetSyncPacket.class,
+                RequestPetSyncPacket::encode,
+                RequestPetSyncPacket::decode,
+                RequestPetSyncPacket::handle);
     }
 
     @SuppressWarnings("resource")
