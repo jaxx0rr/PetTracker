@@ -39,7 +39,7 @@ public class Tracker extends Item {
 
         if (pInteractionTarget instanceof TamableAnimal tamable) {
             if (tamable.isTame()) {
-                if (pInteractionTarget.isAlliedTo(pPlayer)) {
+                if (pPlayer.isCreative() || pInteractionTarget.isAlliedTo(pPlayer)) {
                     CompoundTag tag = pStack.getOrCreateTag();
                     ListTag listTag = getTrackingTag(tag);
                     if (isDuplicate(listTag, pInteractionTarget.getUUID())) {

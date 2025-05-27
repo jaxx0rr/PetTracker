@@ -19,22 +19,6 @@ public class DelayedTaskManager {
         tasks.add(new DelayedTask(ticksDelay, action));
     }
 
-    /*
-    @SubscribeEvent
-    public static void onServerTick(TickEvent.ServerTickEvent event) {
-        if (event.phase != TickEvent.Phase.START) return;
-
-        Iterator<DelayedTask> iterator = tasks.iterator();
-        while (iterator.hasNext()) {
-            DelayedTask task = iterator.next();
-            task.delay--;
-            if (task.delay <= 0) {
-                task.action.accept(event);
-                iterator.remove();
-            }
-        }
-    }
-    */
 
     @SubscribeEvent
     public static void onServerTick(TickEvent.ServerTickEvent event) {

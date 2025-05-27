@@ -19,23 +19,14 @@ public class SavedChunkFinder {
     public static List<ChunkPos> findAllSavedChunks(ServerLevel serverLevel) {
         List<ChunkPos> result = new ArrayList<>();
 
-        //File regionDir = serverLevel.getChunkSource().chunkMap.storage.getDimensionPath().resolve("region").toFile();
-        /*
-        File regionDir = serverLevel.getServer()
-                .getWorldPath(LevelResource.ROOT)
-                .resolve(serverLevel.dimension().location().getNamespace())
-                .resolve(serverLevel.dimension().location().getPath())
-                .resolve("region")
-                .toFile();
-        */
         File regionDir = getRegionFolder(serverLevel);
 
         if (!regionDir.exists() || !regionDir.isDirectory()) {
-            System.out.println("[DEBUG] Region folder not found.");
+            //System.out.println("[DEBUG] Region folder not found.");
             return result;
         }
 
-        System.out.println("[DEBUG] Region folder: " + regionDir.getAbsolutePath());
+        //System.out.println("[DEBUG] Region folder: " + regionDir.getAbsolutePath());
 
         File[] regionFiles = regionDir.listFiles((dir, name) -> name.endsWith(".mca"));
         if (regionFiles == null) return result;
@@ -56,7 +47,7 @@ public class SavedChunkFinder {
                     }
                 }
             } catch (IOException e) {
-                System.err.println("[SavedChunkFinder] Failed to read region file: " + regionFile.getName());
+                //System.err.println("[SavedChunkFinder] Failed to read region file: " + regionFile.getName());
                 e.printStackTrace();
             }
         }

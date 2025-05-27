@@ -1,8 +1,12 @@
 package com.github.justinwon777.pettracker.client;
 
 
+import com.github.justinwon777.pettracker.core.PacketHandler;
 import com.github.justinwon777.pettracker.core.PetPositionTracker;
+import com.github.justinwon777.pettracker.core.PetSyncManager;
 import com.github.justinwon777.pettracker.item.Tracker;
+import com.github.justinwon777.pettracker.networking.RemovePacket;
+import com.github.justinwon777.pettracker.networking.RequestPetSyncPacket;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.ObjectSelectionList;
@@ -18,6 +22,8 @@ import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 
 import javax.annotation.Nullable;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.StreamSupport;
@@ -93,18 +99,38 @@ public class TrackerList extends ObjectSelectionList<TrackerList.Entry> {
                 int x = entityTag.getInt("x");
                 int y = entityTag.getInt("y");
                 int z = entityTag.getInt("z");
+
+//                System.out.println("[DEBUG][Client] Loading pet entry:");
+//                System.out.println("  UUID = " + uuid);
+//                System.out.println("  Name = " + name);
+//                System.out.println("  x/y/z = " + x + "/" + y + "/" + z);
+//                System.out.println("  Source = " + source);
+
                 boolean active = entityTag.getBoolean("active");
                 this.addEntry(new Entry(name, x, y, z, active, uuid, false, this.screen, this.width, this, source));
             }
         }
     }
 
-
     public void refresh() {
         this.children().clear();
         this.addEntriesFromNBT();
+
+        if (!this.children().isEmpty()) {
+            this.setScrollAmount(this.getMaxScroll());
+        }
     }
 
+    public void syncVisiblePets() {
+        if (Minecraft.getInstance().getSingleplayerServer() != null) return; // 🛑 Skip in SP
+
+        for (TrackerList.Entry entry : this.children()) {
+            String source = entry.getSource();
+            if (source.equals("tracked") || source.equals("scan")) {
+                PacketHandler.INSTANCE.sendToServer(new RequestPetSyncPacket(entry.getUuid()));
+            }
+        }
+    }
 
     public void setSelected(@Nullable TrackerList.Entry pSelected) {
         super.setSelected(pSelected);
@@ -144,10 +170,6 @@ public class TrackerList extends ObjectSelectionList<TrackerList.Entry> {
     }
 
     public void delete(Entry entry) {
-        // Remove from visual list
-        this.removeEntry(entry);
-
-        // Remove from itemstack's NBT on client
         ItemStack tracker = this.screen.getItemStack();
         CompoundTag tag = tracker.getOrCreateTag();
 
@@ -164,12 +186,13 @@ public class TrackerList extends ObjectSelectionList<TrackerList.Entry> {
 
             tag.put(Tracker.TRACKING, newList);
             tracker.setTag(tag);
+
+            // 🛠️ Now sync it back to server with delete packet
+            PacketHandler.INSTANCE.sendToServer(new RemovePacket(entry.getUuid(), tracker.copy(), this.screen.getHandKey()));
         }
 
-        this.refresh(); // now it reflects the real NBT
+        this.refresh(); // reflect updated state
     }
-
-
 
     public void addUntrackedEntry(TrackerList.Entry entry) {
         addEntry(entry); // ✅ this is the real method from AbstractSelectionList
@@ -177,7 +200,7 @@ public class TrackerList extends ObjectSelectionList<TrackerList.Entry> {
 
     @OnlyIn(Dist.CLIENT)
     public static class Entry extends ObjectSelectionList.Entry<TrackerList.Entry> {    private final String name;
-        private final int x, y, z;
+        private final int petX, petY, petZ;
         private final UUID uuid;
         private final boolean active;
         private final boolean tracked;
@@ -188,9 +211,9 @@ public class TrackerList extends ObjectSelectionList<TrackerList.Entry> {
 
         public Entry(String name, int x, int y, int z, boolean active, UUID uuid, boolean tracked, TrackerScreen screen, int listWidth, TrackerList parentList, String source) {
             this.name = name;
-            this.x = x;
-            this.y = y;
-            this.z = z;
+            this.petX = x;
+            this.petY = y;
+            this.petZ = z;
             this.active = active;
             this.uuid = uuid;
             this.tracked = tracked;
@@ -215,15 +238,47 @@ public class TrackerList extends ObjectSelectionList<TrackerList.Entry> {
         @Override
         public void render(GuiGraphics guiGraphics, int index, int y, int x, int width, int height,
                            int mouseX, int mouseY, boolean isMouseOver, float partialTick) {
-            PetPositionTracker.TrackedPet pos = PetPositionTracker.get(this.uuid);
+//            PetPositionTracker.TrackedPet pos = PetPositionTracker.get(this.uuid);
+//
+//            String location = pos != null
+//                    ? "Location: " + (int) pos.x() + ", " + (int) pos.y() + ", " + (int) pos.z()
+//                    : "Location: ???";
+//
+//            String distance = pos != null
+//                    ? distanceTo((int) pos.x(), (int) pos.y(), (int) pos.z()) + " blocks away"
+//                    : "Distance: ???";
 
-            String location = pos != null
-                    ? "Location: " + (int) pos.x() + ", " + (int) pos.y() + ", " + (int) pos.z()
-                    : "Location: ???";
+            String location;
+            String distance;
 
-            String distance = pos != null
-                    ? distanceTo((int) pos.x(), (int) pos.y(), (int) pos.z()) + " blocks away"
-                    : "Distance: ???";
+            boolean isMultiplayer = !Minecraft.getInstance().hasSingleplayerServer();
+
+            if (this.source.equals("deepscan")) {
+                // Always use static saved coords for deepscan
+                location = "Location: " + petX + ", " + petY + ", " + petZ;
+                distance = screen != null
+                        ? distanceTo(petX, petY, petZ) + " blocks away"
+                        : "Distance: ???";
+
+            } else if (this.source.equals("extscan") && isMultiplayer) {
+                // Use static saved coords for extscan *only in multiplayer*
+                location = "Location: " + petX + ", " + petY + ", " + petZ;
+                distance = screen != null
+                        ? distanceTo(petX, petY, petZ) + " blocks away"
+                        : "Distance: ???";
+
+            } else {
+                // For other sources or extscan in singleplayer, try runtime tracking
+                PetPositionTracker.TrackedPet pos = PetPositionTracker.get(this.uuid);
+                if (pos != null) {
+                    location = "Location: " + (int) pos.x() + ", " + (int) pos.y() + ", " + (int) pos.z();
+                    distance = distanceTo((int) pos.x(), (int) pos.y(), (int) pos.z()) + " blocks away";
+                } else {
+                    // ❗ New fallback logic
+                    location = "Location: " + petX + ", " + petY + ", " + petZ;
+                    distance = distanceTo(petX, petY, petZ) + " blocks away";
+                }
+            }
 
             int color;
             String label;

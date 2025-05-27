@@ -1,5 +1,7 @@
 package com.github.justinwon777.pettracker.networking;
 
+import com.github.justinwon777.pettracker.core.PacketHandler;
+import com.github.justinwon777.pettracker.item.Tracker;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.network.FriendlyByteBuf;
@@ -7,6 +9,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.network.NetworkEvent;
+import net.minecraftforge.network.PacketDistributor;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -65,7 +68,7 @@ public class AddPetsToTrackerPacket {
             ItemStack trackerStack = player.getItemInHand(hand);
 
             CompoundTag tag = trackerStack.getOrCreateTag();
-            ListTag originalList = tag.contains("Tracking") ? tag.getList("Tracking", 10) : new ListTag();
+            ListTag originalList = tag.contains(Tracker.TRACKING) ? tag.getList(Tracker.TRACKING, 10) : new ListTag();
             ListTag filtered = new ListTag();
 
             for (int i = 0; i < originalList.size(); i++) {
@@ -87,9 +90,13 @@ public class AddPetsToTrackerPacket {
                 filtered.add(petTag);
             }
 
-            tag.put("Tracking", filtered);
+            tag.put(Tracker.TRACKING, filtered);
             trackerStack.setTag(tag);
             player.setItemInHand(hand, trackerStack);
+
+            // Send updated stack to client
+            PacketHandler.INSTANCE.send(PacketDistributor.PLAYER.with(() -> player),
+                    new SyncTrackerStackPacket(trackerStack.copy(), msg.handKey));
         });
         ctx.get().setPacketHandled(true);
     }

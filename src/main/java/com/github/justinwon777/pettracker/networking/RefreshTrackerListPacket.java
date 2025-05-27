@@ -39,7 +39,6 @@ public class RefreshTrackerListPacket {
     private static void doClientRefresh(boolean isFinalUpdate) {
         if (Minecraft.getInstance().screen instanceof TrackerScreen screen) {
             screen.getTrackerList().refresh();
-
             if (isFinalUpdate) {
                 screen.onScanFinished();
             }
