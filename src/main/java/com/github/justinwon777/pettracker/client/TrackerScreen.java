@@ -262,8 +262,6 @@ public class TrackerScreen extends Screen {
                         .build()
         );
 
-        this.stopScanButton.visible = false; // Hide by default
-
         this.teleportButton = addRenderableWidget(
                 new Button.Builder(Component.literal("Teleport"), btn -> {
                     TrackerList.Entry entry = this.trackerList.getSelected();

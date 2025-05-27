@@ -1,4 +1,4 @@
-# 🐾 PetTracker
+# 🐾 Pet Tracker for 1.20.1
 
 this is a port of https://github.com/justinwon777/PetTracker/
 
@@ -15,9 +15,10 @@ the original did not have any of the scan features
 - 🐺 Supports any TamableAnimal (wolves, cats, parrots, foxes, etc.)
 - 🔄 Automatically updates tracked pets while the item is in your inventory
 - 🧭 Scan nearby pets (in loaded chunks)
-- 🛰️ Deep scan (singleplayer only) for all tamed pets in the current dimension, including those in unloaded chunks
+- 🛰️ Deep scan (in a radius) for all tamed pets in the current dimension in unloaded chunks
 - ✅ Simple UI for teleporting to or removing pets from the list
 - 🎨 Visual distinction for globally scanned pets not currently rendered in client view
+- 🌐 Works in Singleplayer and Multiplayer (if the mod is loaded on the Server)
 
 ---
 
