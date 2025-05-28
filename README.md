@@ -19,9 +19,9 @@ the original did not have any of the scan features
 - ✅ Simple UI for teleporting/to or removing pets from the list
 - 🎨 Visual distinction for globally scanned pets not currently rendered in client view
 - 🌐 Works in Singleplayer and Multiplayer (if the mod is loaded on the Server)
-- Supports other dimensions including custom.
-- Teleport tracked pets from this or other dimensions / teleport to them.
-- Teleports your pets with you when you teleport to a pet (and they are not sitting) - you can use this as a fast travel system.
+- 🌀 Supports other dimensions including custom.
+- 🐕‍🦺 Teleport tracked pets to you and teleport yourself to tracked pets in any dimension.
+- ✨Teleports your non-sitting pets with you when you teleport - you can use this as a fast travel system.
 
 ---
 
