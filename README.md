@@ -55,5 +55,5 @@ the original did not have any of the scan features
 3. Place the `.jar` file in your `mods/` folder
 4. Launch the game!
 
-[Download PetTracker v1.0.2](https://github.com/jaxx0rr/PetTracker/releases/download/1.0.2/pettracker-1.0.2-1.20.1.jar)
+[Download PetTracker v1.0.3](https://github.com/jaxx0rr/PetTracker/releases/download/1.0.3/pettracker-1.0.3-1.20.1.jar)
 ---
