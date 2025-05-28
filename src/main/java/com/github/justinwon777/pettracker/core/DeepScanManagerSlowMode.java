@@ -168,6 +168,7 @@ public class DeepScanManagerSlowMode {
                         petTag.putInt("z", (int) pet.getZ());
                         petTag.putBoolean("active", true);
                         petTag.putString("source", "deepscan");
+                        petTag.putString("dimension", level.dimension().location().toString());
 
                         trackingList.add(petTag);
                         tag.put(Tracker.TRACKING, trackingList);

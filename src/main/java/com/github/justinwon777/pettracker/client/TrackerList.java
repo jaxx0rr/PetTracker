@@ -14,10 +14,13 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.TamableAnimal;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 
@@ -53,15 +56,38 @@ public class TrackerList extends ObjectSelectionList<TrackerList.Entry> {
                         .findFirst()
                         .orElse(null);
 
+//                if (entity instanceof TamableAnimal tamable) {
+//                    String name = tamable.getDisplayName().getString();
+//                    BlockPos pos = entity.blockPosition();
+//                    boolean active = tamable.isAlive();
+//                    this.addEntry(new Entry(name, pos.getX(), pos.getY(), pos.getZ(), active, uuid, source.equals("tracked"), this.screen, this.width, this, source));
+//                } else {
+//                    String name = entityTag.getString("name");
+//                    this.addEntry(new Entry(name, 0, 0, 0, false, uuid, false, this.screen, this.width, this, source));
+//                }
+
                 if (entity instanceof TamableAnimal tamable) {
                     String name = tamable.getDisplayName().getString();
                     BlockPos pos = entity.blockPosition();
                     boolean active = tamable.isAlive();
-                    this.addEntry(new Entry(name, pos.getX(), pos.getY(), pos.getZ(), active, uuid, source.equals("tracked"), this.screen, this.width, this, source));
+                    ResourceKey<Level> dimension = entity.level().dimension(); // ✅ NEW
+
+                    this.addEntry(new Entry(name, pos.getX(), pos.getY(), pos.getZ(), active, uuid,
+                            source.equals("tracked"), this.screen, this.width, this, source, dimension));
                 } else {
                     String name = entityTag.getString("name");
-                    this.addEntry(new Entry(name, 0, 0, 0, false, uuid, false, this.screen, this.width, this, source));
+
+                    // Try to extract dimension if stored in NBT, or fallback to OVERWORLD
+                    ResourceKey<Level> dimension = Level.OVERWORLD;
+                    if (entityTag.contains("dimension")) {
+                        try {
+                            dimension = ResourceKey.create(net.minecraft.core.registries.Registries.DIMENSION, new ResourceLocation(entityTag.getString("dimension")));
+                        } catch (Exception ignored) {}
+                    }
+
+                    this.addEntry(new Entry(name, 0, 0, 0, false, uuid, false, this.screen, this.width, this, source, dimension));
                 }
+
 
             }
         }
@@ -70,6 +96,41 @@ public class TrackerList extends ObjectSelectionList<TrackerList.Entry> {
             this.centerScrollOn(this.getSelected());
         }
     }
+
+//    public void addEntriesFromNBT() {
+//        ItemStack tracker = this.screen.getItemStack();
+//        CompoundTag tag = tracker.getOrCreateTag();
+//        if (!tag.contains(Tracker.TRACKING)) return;
+//
+//        ListTag listTag = tag.getList(Tracker.TRACKING, 10);
+//        for (int i = 0; i < listTag.size(); i++) {
+//            CompoundTag entityTag = listTag.getCompound(i);
+//            UUID uuid = entityTag.getUUID("uuid");
+//            String source = entityTag.getString("source");
+//
+//            Entity entity = StreamSupport.stream(
+//                            Minecraft.getInstance().level.entitiesForRendering().spliterator(), false)
+//                    .filter(e -> uuid.equals(e.getUUID()))
+//                    .findFirst()
+//                    .orElse(null); // ✅ working UUID match
+//
+//
+//            if (entity instanceof TamableAnimal tamable) {
+//                String name = tamable.getDisplayName().getString();
+//                BlockPos pos = entity.blockPosition();
+//                boolean active = tamable.isAlive();
+//                this.addEntry(new Entry(name, pos.getX(), pos.getY(), pos.getZ(), active, uuid, source.equals("tracked"), this.screen, this.width, this, source));
+//            } else {
+//                String name = entityTag.getString("name");
+//                int x = entityTag.getInt("x");
+//                int y = entityTag.getInt("y");
+//                int z = entityTag.getInt("z");
+//
+//                boolean active = entityTag.getBoolean("active");
+//                this.addEntry(new Entry(name, x, y, z, active, uuid, false, this.screen, this.width, this, source));
+//            }
+//        }
+//    }
 
     public void addEntriesFromNBT() {
         ItemStack tracker = this.screen.getItemStack();
@@ -82,35 +143,36 @@ public class TrackerList extends ObjectSelectionList<TrackerList.Entry> {
             UUID uuid = entityTag.getUUID("uuid");
             String source = entityTag.getString("source");
 
+            // Default dimension to OVERWORLD
+            ResourceKey<Level> dimension = Level.OVERWORLD;
+            if (entityTag.contains("dimension")) {
+                try {
+                    dimension = ResourceKey.create(net.minecraft.core.registries.Registries.DIMENSION, new ResourceLocation(entityTag.getString("dimension")));
+                } catch (Exception ignored) {}
+            }
+
             Entity entity = StreamSupport.stream(
                             Minecraft.getInstance().level.entitiesForRendering().spliterator(), false)
                     .filter(e -> uuid.equals(e.getUUID()))
                     .findFirst()
-                    .orElse(null); // ✅ working UUID match
-
+                    .orElse(null);
 
             if (entity instanceof TamableAnimal tamable) {
                 String name = tamable.getDisplayName().getString();
                 BlockPos pos = entity.blockPosition();
                 boolean active = tamable.isAlive();
-                this.addEntry(new Entry(name, pos.getX(), pos.getY(), pos.getZ(), active, uuid, source.equals("tracked"), this.screen, this.width, this, source));
+                this.addEntry(new Entry(name, pos.getX(), pos.getY(), pos.getZ(), active, uuid, source.equals("tracked"), this.screen, this.width, this, source, dimension));
             } else {
                 String name = entityTag.getString("name");
                 int x = entityTag.getInt("x");
                 int y = entityTag.getInt("y");
                 int z = entityTag.getInt("z");
-
-//                System.out.println("[DEBUG][Client] Loading pet entry:");
-//                System.out.println("  UUID = " + uuid);
-//                System.out.println("  Name = " + name);
-//                System.out.println("  x/y/z = " + x + "/" + y + "/" + z);
-//                System.out.println("  Source = " + source);
-
                 boolean active = entityTag.getBoolean("active");
-                this.addEntry(new Entry(name, x, y, z, active, uuid, false, this.screen, this.width, this, source));
+                this.addEntry(new Entry(name, x, y, z, active, uuid, false, this.screen, this.width, this, source, dimension));
             }
         }
     }
+
 
     public void refresh() {
         this.children().clear();
@@ -137,6 +199,7 @@ public class TrackerList extends ObjectSelectionList<TrackerList.Entry> {
         if (pSelected != null) {
             this.screen.updateRemoveButtonStatus(true);
             this.screen.updateTeleportButtonStatus(pSelected.active);
+            this.screen.updateTpToButtonStatus(true);
         }
 
     }
@@ -208,8 +271,9 @@ public class TrackerList extends ObjectSelectionList<TrackerList.Entry> {
         private final int listWidth;
         private final TrackerList parentList;
         private final String source;
+        private final ResourceKey<Level> dimension;
 
-        public Entry(String name, int x, int y, int z, boolean active, UUID uuid, boolean tracked, TrackerScreen screen, int listWidth, TrackerList parentList, String source) {
+        public Entry(String name, int x, int y, int z, boolean active, UUID uuid, boolean tracked, TrackerScreen screen, int listWidth, TrackerList parentList, String source, ResourceKey<Level> dimension) {
             this.name = name;
             this.petX = x;
             this.petY = y;
@@ -221,6 +285,27 @@ public class TrackerList extends ObjectSelectionList<TrackerList.Entry> {
             this.listWidth = listWidth;
             this.parentList = parentList;
             this.source = source;
+            this.dimension = dimension;
+        }
+
+        public int getX() {
+            return this.petX;
+        }
+
+        public int getY() {
+            return this.petY;
+        }
+
+        public int getZ() {
+            return this.petZ;
+        }
+
+        public ResourceKey<Level> getDimension() {
+            return this.dimension;
+        }
+
+        public String getDimensionString() {
+            return this.dimension.location().toString();
         }
 
         public String getSource() {
@@ -238,15 +323,6 @@ public class TrackerList extends ObjectSelectionList<TrackerList.Entry> {
         @Override
         public void render(GuiGraphics guiGraphics, int index, int y, int x, int width, int height,
                            int mouseX, int mouseY, boolean isMouseOver, float partialTick) {
-//            PetPositionTracker.TrackedPet pos = PetPositionTracker.get(this.uuid);
-//
-//            String location = pos != null
-//                    ? "Location: " + (int) pos.x() + ", " + (int) pos.y() + ", " + (int) pos.z()
-//                    : "Location: ???";
-//
-//            String distance = pos != null
-//                    ? distanceTo((int) pos.x(), (int) pos.y(), (int) pos.z()) + " blocks away"
-//                    : "Distance: ???";
 
             String location;
             String distance;
@@ -255,14 +331,14 @@ public class TrackerList extends ObjectSelectionList<TrackerList.Entry> {
 
             if (this.source.equals("deepscan")) {
                 // Always use static saved coords for deepscan
-                location = "Location: " + petX + ", " + petY + ", " + petZ;
+                location = petX + ", " + petY + ", " + petZ;
                 distance = screen != null
                         ? distanceTo(petX, petY, petZ) + " blocks away"
                         : "Distance: ???";
 
             } else if (this.source.equals("extscan") && isMultiplayer) {
                 // Use static saved coords for extscan *only in multiplayer*
-                location = "Location: " + petX + ", " + petY + ", " + petZ;
+                location = petX + ", " + petY + ", " + petZ;
                 distance = screen != null
                         ? distanceTo(petX, petY, petZ) + " blocks away"
                         : "Distance: ???";
@@ -271,11 +347,11 @@ public class TrackerList extends ObjectSelectionList<TrackerList.Entry> {
                 // For other sources or extscan in singleplayer, try runtime tracking
                 PetPositionTracker.TrackedPet pos = PetPositionTracker.get(this.uuid);
                 if (pos != null) {
-                    location = "Location: " + (int) pos.x() + ", " + (int) pos.y() + ", " + (int) pos.z();
+                    location = (int) pos.x() + ", " + (int) pos.y() + ", " + (int) pos.z();
                     distance = distanceTo((int) pos.x(), (int) pos.y(), (int) pos.z()) + " blocks away";
                 } else {
                     // ❗ New fallback logic
-                    location = "Location: " + petX + ", " + petY + ", " + petZ;
+                    location = petX + ", " + petY + ", " + petZ;
                     distance = distanceTo(petX, petY, petZ) + " blocks away";
                 }
             }
@@ -304,6 +380,9 @@ public class TrackerList extends ObjectSelectionList<TrackerList.Entry> {
 
 
             String displayName = this.name + label;
+            String dimensionName = this.getDimensionString();
+
+            location = location + " " + dimensionName;
 
             int centerX = listWidth / 2;
 

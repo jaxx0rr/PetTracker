@@ -32,6 +32,45 @@ public class Tracker extends Item {
         super(p_i48487_1_);
     }
 
+//    @Override
+//    public InteractionResult interactLivingEntity(ItemStack pStack, Player pPlayer, LivingEntity pInteractionTarget,
+//                                                  InteractionHand pUsedHand) {
+//        if (pInteractionTarget.level().isClientSide) return InteractionResult.SUCCESS;
+//
+//        if (pInteractionTarget instanceof TamableAnimal tamable) {
+//            if (tamable.isTame()) {
+//                if (pPlayer.isCreative() || pInteractionTarget.isAlliedTo(pPlayer)) {
+//                    CompoundTag tag = pStack.getOrCreateTag();
+//                    ListTag listTag = getTrackingTag(tag);
+//                    if (isDuplicate(listTag, pInteractionTarget.getUUID())) {
+//                        pPlayer.sendSystemMessage(Component.literal("Mob already added"));
+//                        return InteractionResult.SUCCESS;
+//                    }
+//
+//                    CompoundTag entityTag = new CompoundTag();
+//                    entityTag.putUUID("uuid", pInteractionTarget.getUUID());
+//                    entityTag.putString("name", pInteractionTarget.getDisplayName().getString());
+//                    entityTag.putInt("x", (int) pInteractionTarget.getX());
+//                    entityTag.putInt("y", (int) pInteractionTarget.getY());
+//                    entityTag.putInt("z", (int) pInteractionTarget.getZ());
+//                    entityTag.putBoolean("active", true);
+//                    listTag.add(entityTag);
+//
+//                    pPlayer.setItemInHand(pUsedHand, pStack);
+//                    pPlayer.sendSystemMessage(Component.literal("Mob added"));
+//                } else {
+//                    pPlayer.sendSystemMessage(Component.literal("You don't own this mob"));
+//                }
+//            } else {
+//                pPlayer.sendSystemMessage(Component.literal("This mob isn't tamed"));
+//            }
+//        } else {
+//            pPlayer.sendSystemMessage(Component.literal("This mob isn't tameable"));
+//        }
+//
+//        return InteractionResult.SUCCESS;
+//    }
+
     @Override
     public InteractionResult interactLivingEntity(ItemStack pStack, Player pPlayer, LivingEntity pInteractionTarget,
                                                   InteractionHand pUsedHand) {
@@ -54,8 +93,10 @@ public class Tracker extends Item {
                     entityTag.putInt("y", (int) pInteractionTarget.getY());
                     entityTag.putInt("z", (int) pInteractionTarget.getZ());
                     entityTag.putBoolean("active", true);
-                    listTag.add(entityTag);
+                    entityTag.putString("source", "tracked"); // Optional: make sure the source is noted
+                    entityTag.putString("dimension", pInteractionTarget.level().dimension().location().toString()); // 🆕 Dimension saved
 
+                    listTag.add(entityTag);
                     pPlayer.setItemInHand(pUsedHand, pStack);
                     pPlayer.sendSystemMessage(Component.literal("Mob added"));
                 } else {
@@ -82,13 +123,6 @@ public class Tracker extends Item {
                     Entity entity = getEntity((ServerLevel) pLevel, entityTag.getUUID("uuid"));
                     if (entity != null) {
                         PetPositionTracker.updatePet(entity);
-                        /*
-                        entityTag.putInt("x", (int) entity.getX());
-                        entityTag.putInt("y", (int) entity.getY());
-                        entityTag.putInt("z", (int) entity.getZ());
-                        entityTag.putBoolean("active", true);
-                        entityTag.putString("name", entity.getDisplayName().getString());
-                        */
                     } else {
                         entityTag.putBoolean("active", false);
                     }
@@ -108,23 +142,6 @@ public class Tracker extends Item {
         }
         pPlayer.swing(pUsedHand);
         ItemStack itemstack = pPlayer.getItemInHand(pUsedHand);
-        CompoundTag tag = itemstack.getTag();
-        /*
-        if (tag != null && tag.contains(TRACKING)) {
-            ListTag listTag = tag.getList(TRACKING, 10);
-            if (!listTag.isEmpty()) {
-                OpenTrackerPacket packet = new OpenTrackerPacket(itemstack, hand, pPlayer.getX(), pPlayer.getY(),
-                        pPlayer.getZ());
-                PacketHandler.INSTANCE.send(PacketDistributor.PLAYER.with(() -> (ServerPlayer) pPlayer),
-                        packet);
-            } else {
-                pPlayer.sendSystemMessage(Component.literal("No mobs added."));
-            }
-        } else {
-            pPlayer.sendSystemMessage(Component.literal("No mobs added"));
-        }
-        */
-
         OpenTrackerPacket packet = new OpenTrackerPacket(itemstack, hand, pPlayer.getX(), pPlayer.getY(), pPlayer.getZ());
         PacketHandler.INSTANCE.send(PacketDistributor.PLAYER.with(() -> (ServerPlayer) pPlayer), packet);
 

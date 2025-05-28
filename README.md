@@ -12,13 +12,16 @@ the original did not have any of the scan features
 
 - 🧭 Adds a Pet Tracker item that lists your tamed pets
 - 📍 Shows pet names, positions, and real-time distance
-- 🐺 Supports any TamableAnimal (wolves, cats, parrots, foxes, etc.)
-- 🔄 Automatically updates tracked pets while the item is in your inventory
+- 🐺 Supports any TamableAnimal (wolves, cats, parrots, foxes, etc.) even pets from mods.
+- 🔄 Automatically updates tracked pets while the item is in your inventory (and chunk is loaded)
 - 🧭 Scan nearby pets (in loaded chunks)
 - 🛰️ Deep scan (in a radius) for all tamed pets in the current dimension in unloaded chunks
-- ✅ Simple UI for teleporting to or removing pets from the list
+- ✅ Simple UI for teleporting/to or removing pets from the list
 - 🎨 Visual distinction for globally scanned pets not currently rendered in client view
 - 🌐 Works in Singleplayer and Multiplayer (if the mod is loaded on the Server)
+- Supports other dimensions including custom.
+- Teleport tracked pets from this or other dimensions / teleport to them.
+- Teleports your pets with you when you teleport to a pet (and they are not sitting) - you can use this as a fast travel system.
 
 ---
 

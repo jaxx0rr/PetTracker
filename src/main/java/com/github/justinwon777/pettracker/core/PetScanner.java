@@ -55,12 +55,21 @@ public class PetScanner {
             petTag.putInt("z", (int) pet.getZ());
             petTag.putBoolean("active", true);
             petTag.putString("source", "scan");
+            petTag.putString("dimension", entity.level().dimension().location().toString()); // ✅ Added dimension
 
             newScanPets.add(petTag);
             serverSyncPets.add(new AddPetsToTrackerPacket.PetData(
-                    pet.getUUID(), displayName, (int) pet.getX(), (int) pet.getY(), (int) pet.getZ(), true, "scan"
+                    pet.getUUID(),
+                    displayName,
+                    (int) pet.getX(),
+                    (int) pet.getY(),
+                    (int) pet.getZ(),
+                    true,
+                    "scan",
+                    pet.level().dimension().location().toString()  // ⬅️ Add this for dimension
             ));
         }
+
 
         // Append to NBT list
         if (!newScanPets.isEmpty()) {

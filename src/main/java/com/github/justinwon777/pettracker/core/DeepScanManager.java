@@ -138,6 +138,7 @@ public class DeepScanManager {
                                     petTag.putInt("z", (int) pet.getZ());
                                     petTag.putBoolean("active", true);
                                     petTag.putString("source", "deepscan");
+                                    petTag.putString("dimension", level.dimension().location().toString());
 
                                     trackingList.add(petTag);
                                     tag.put(Tracker.TRACKING, trackingList);
@@ -204,73 +205,6 @@ public class DeepScanManager {
         return ring;
     }
 
-
-//    public static void startScanLoadedChunks(ServerLevel level, ServerPlayer player, TrackerScreen screen, TrackerList list) {
-//        // Determine hand
-//        InteractionHand hand = screen.getHandKey().equals("m") ? InteractionHand.MAIN_HAND : InteractionHand.OFF_HAND;
-//        ItemStack trackerStack = player.getItemInHand(hand);
-//
-//        CompoundTag tag = trackerStack.getOrCreateTag();
-//        ListTag originalList = tag.contains(Tracker.TRACKING) ? tag.getList(Tracker.TRACKING, 10) : new ListTag();
-//        ListTag cleanedList = new ListTag();
-//
-//        Set<UUID> alreadyTracked = new HashSet<>();
-//
-//        // Clean old "extscan" entries, keep the rest
-//        for (int i = 0; i < originalList.size(); i++) {
-//            CompoundTag entry = originalList.getCompound(i);
-//            String source = entry.getString("source");
-//            UUID uuid = entry.getUUID("uuid");
-//
-//            if (!"extscan".equals(source)) {
-//                cleanedList.add(entry);
-//                alreadyTracked.add(uuid);
-//            }
-//        }
-//
-//        int added = 0;
-//
-//        for (Entity entity : level.getEntities().getAll()) {
-//            if (!(entity instanceof TamableAnimal pet)) continue;
-//            if (!pet.isTame()) continue;
-//            if (alreadyTracked.contains(pet.getUUID())) continue;
-//
-//            String petName = pet.getDisplayName().getString();
-//            String ownerName = pet.getOwner() != null
-//                    ? pet.getOwner().getName().getString()
-//                    : "Unknown";
-//            String displayName = pet.isOwnedBy(player)
-//                    ? petName
-//                    : ownerName + "'s " + petName;
-//
-//            CompoundTag petTag = new CompoundTag();
-//            petTag.putUUID("uuid", pet.getUUID());
-//            petTag.putString("name", displayName);
-//            petTag.putInt("x", (int) pet.getX());
-//            petTag.putInt("y", (int) pet.getY());
-//            petTag.putInt("z", (int) pet.getZ());
-//            petTag.putBoolean("active", true);
-//            petTag.putString("source", "extscan");
-//
-//            cleanedList.add(petTag);
-//            added++;
-//        }
-//
-//        // Save updated list
-//        tag.put(Tracker.TRACKING, cleanedList);
-//        trackerStack.setTag(tag);
-//        player.setItemInHand(hand, trackerStack);
-//
-//        PacketHandler.INSTANCE.send(PacketDistributor.PLAYER.with(() -> player),
-//                new SyncTrackerStackPacket(trackerStack, screen.getHandKey()));
-//
-//        PacketHandler.INSTANCE.send(PacketDistributor.PLAYER.with(() -> player),
-//                new RefreshTrackerListPacket(true));
-//
-//        //player.sendSystemMessage(Component.literal("[Scan] Added " + added + " pets from loaded chunks."));
-//    }
-
-
     public static void startScanLoadedChunks(ServerLevel level, ServerPlayer player, @Nullable TrackerScreen screen, @Nullable TrackerList list) {
 
         // Determine hand (fallback to MAIN_HAND if no screen)
@@ -303,6 +237,32 @@ public class DeepScanManager {
 
         int added = 0;
 
+//        for (Entity entity : level.getEntities().getAll()) {
+//            if (!(entity instanceof TamableAnimal pet)) continue;
+//            if (!pet.isTame()) continue;
+//            if (alreadyTracked.contains(pet.getUUID())) continue;
+//
+//            String petName = pet.getDisplayName().getString();
+//            String ownerName = pet.getOwner() != null
+//                    ? pet.getOwner().getName().getString()
+//                    : "Unknown";
+//            String displayName = pet.isOwnedBy(player)
+//                    ? petName
+//                    : ownerName + "'s " + petName;
+//
+//            CompoundTag petTag = new CompoundTag();
+//            petTag.putUUID("uuid", pet.getUUID());
+//            petTag.putString("name", displayName);
+//            petTag.putInt("x", (int) pet.getX());
+//            petTag.putInt("y", (int) pet.getY());
+//            petTag.putInt("z", (int) pet.getZ());
+//            petTag.putBoolean("active", true);
+//            petTag.putString("source", "extscan");
+//
+//            cleanedList.add(petTag);
+//            added++;
+//        }
+
         for (Entity entity : level.getEntities().getAll()) {
             if (!(entity instanceof TamableAnimal pet)) continue;
             if (!pet.isTame()) continue;
@@ -324,10 +284,12 @@ public class DeepScanManager {
             petTag.putInt("z", (int) pet.getZ());
             petTag.putBoolean("active", true);
             petTag.putString("source", "extscan");
+            petTag.putString("dimension", level.dimension().location().toString()); // ✅ Added dimension
 
             cleanedList.add(petTag);
             added++;
         }
+
 
         // Save updated list
         tag.put(Tracker.TRACKING, cleanedList);

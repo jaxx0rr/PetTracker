@@ -41,6 +41,11 @@ public class PacketHandler {
                 RequestPetSyncPacket::encode,
                 RequestPetSyncPacket::decode,
                 RequestPetSyncPacket::handle);
+        INSTANCE.registerMessage(id++, TeleportPlayerToLocationPacket.class,
+                TeleportPlayerToLocationPacket::encode,
+                TeleportPlayerToLocationPacket::decode,
+                TeleportPlayerToLocationPacket::handle
+        );
     }
 
     @SuppressWarnings("resource")

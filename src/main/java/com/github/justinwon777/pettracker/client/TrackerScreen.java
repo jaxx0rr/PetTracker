@@ -4,10 +4,7 @@ import com.github.justinwon777.pettracker.PetTracker;
 import com.github.justinwon777.pettracker.core.PacketHandler;
 import com.github.justinwon777.pettracker.core.PetPositionTracker;
 import com.github.justinwon777.pettracker.core.PetScanner;
-import com.github.justinwon777.pettracker.networking.CancelDeepScanPacket;
-import com.github.justinwon777.pettracker.networking.RemovePacket;
-import com.github.justinwon777.pettracker.networking.StartDeepScanPacket;
-import com.github.justinwon777.pettracker.networking.TeleportPacket;
+import com.github.justinwon777.pettracker.networking.*;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.ChatFormatting;
@@ -49,6 +46,7 @@ public class TrackerScreen extends Screen {
 
     private TrackerList trackerList;
     private Button teleportButton;
+    private Button tpToButton;
     private Button removeButton;
     private Button scanButton;
     private Button extScanButton;
@@ -61,9 +59,7 @@ public class TrackerScreen extends Screen {
     private final double py;
     private final double pz;
 
-    private boolean deepScanRunning = false;
-
-    private static boolean deepScanRunningGlobal = false;
+    private static boolean deepScanRunning = false;
 
     private int syncTickCounter = 0;
     private static final int SYNC_INTERVAL_TICKS = 100; // once per second
@@ -145,16 +141,6 @@ public class TrackerScreen extends Screen {
                         .build()
         );
 
-//        this.extScanButton = this.addRenderableWidget(
-//                new Button.Builder(Component.literal("Loaded Chunks"), btn -> {
-//                    trackerList.children().removeIf(e -> "extscan".equals(((TrackerList.Entry) e).getSource()));
-//                    PacketHandler.INSTANCE.sendToServer(new StartDeepScanPacket(this.hand, 0, 2)); // loaded scan
-//                })
-//                        .bounds(leftPos + 75, topPos + 15, 90, 16)
-//                        .tooltip(Tooltip.create(Component.literal("Scan loaded chunks for pets.")))
-//                        .build()
-//        );
-
 
         // Only show this button in singleplayer (integrated server)
         if (Minecraft.getInstance().getSingleplayerServer() != null) {
@@ -177,7 +163,7 @@ public class TrackerScreen extends Screen {
             offsetY = this.topPos + 15;
         }
 
-        EditBox ringInput = new EditBox(this.font, offsetX, offsetY, 20, 16, Component.literal("Radius"));
+        EditBox ringInput = new EditBox(this.font, offsetX, offsetY+2, 20, 14, Component.literal("Radius"));
         ringInput.setMaxLength(2);         // Allow up to 2 digits
         ringInput.setValue("20");            // Default
         this.addRenderableWidget(ringInput);
@@ -195,11 +181,7 @@ public class TrackerScreen extends Screen {
                         trackerList.children().removeIf(e -> "deepscan".equals(((TrackerList.Entry) e).getSource()));
 
                         deepScanRunning = true;
-                        deepScanRunningGlobal = true;
-                        // Safely toggle visibility only if buttons are not null
-                        if (this.deepScanButton != null) this.deepScanButton.visible = false;
-                        if (this.deepScanButtonFast != null) this.deepScanButtonFast.visible = false;
-                        if (this.stopScanButton != null) this.stopScanButton.visible = true;
+                        updateScanButtonVisibility();
 
                         int radius;
                         try {
@@ -231,10 +213,7 @@ public class TrackerScreen extends Screen {
                             trackerList.children().removeIf(e -> "deepscan".equals(((TrackerList.Entry) e).getSource()));
 
                             deepScanRunning = true;
-                            deepScanRunningGlobal = true;
-                            deepScanButton.visible = false;
-                            deepScanButtonFast.visible = false;
-                            stopScanButton.visible = true;
+                            updateScanButtonVisibility();
 
                             int radius;
                             try {
@@ -257,19 +236,39 @@ public class TrackerScreen extends Screen {
                 new Button.Builder(Component.literal("Stop Deep Scan"), btn -> {
                     PacketHandler.INSTANCE.sendToServer(new CancelDeepScanPacket());
                 })
-                        .bounds(leftPos + 35, topPos + 180, 125, 16)
+                        .bounds(leftPos + 15, topPos + 180, 145, 16)
                         .tooltip(Tooltip.create(Component.literal("Cancel current deep scan in progress")))
                         .build()
         );
 
+        int buttonY = topPos + imageHeight - 10 - 15;
+        int buttonW = 50; // Adjusted width
+        int spacing = 5;
+
         this.teleportButton = addRenderableWidget(
-                new Button.Builder(Component.literal("Teleport"), btn -> {
+                new Button.Builder(Component.literal("TP"), btn -> {
                     TrackerList.Entry entry = this.trackerList.getSelected();
                     if (entry != null) {
-                        //PacketHandler.INSTANCE.sendToServer(new TeleportPacket(entry.uuid));
                         PacketHandler.INSTANCE.sendToServer(new TeleportPacket(entry.getUuid()));
                     }
-                }).bounds(leftPos + 5, topPos + imageHeight - 10 - 15, 83, 20)
+                }).bounds(leftPos + 5, buttonY, buttonW, 20)
+                        .build()
+        );
+
+        this.tpToButton = addRenderableWidget(
+                new Button.Builder(Component.literal("TP To"), btn -> {
+                    TrackerList.Entry entry = this.trackerList.getSelected();
+                    if (entry != null) {
+                        PacketHandler.INSTANCE.sendToServer(
+                                new TeleportPlayerToLocationPacket(
+                                        entry.getX(),
+                                        entry.getY(),
+                                        entry.getZ(),
+                                        entry.getDimensionString() // ⬅️ include dimension
+                                )
+                        );
+                    }
+                }).bounds(leftPos + 5 + buttonW + spacing, buttonY, buttonW, 20)
                         .build()
         );
 
@@ -281,13 +280,16 @@ public class TrackerScreen extends Screen {
                         this.trackerList.delete(entry);
                         updateRemoveButtonStatus(false);
                         updateTeleportButtonStatus(false);
+                        updateTpToButtonStatus(false);
                     }
-                }).bounds(leftPos + 89, topPos + imageHeight - 10 - 15, 83, 20)
+                }).bounds(leftPos + 5 + 2 * (buttonW + spacing), buttonY, buttonW, 20)
                         .build()
         );
 
+
         updateTeleportButtonStatus(false);
         updateRemoveButtonStatus(false);
+        updateTpToButtonStatus(false);
         updateScanButtonVisibility();
     }
 
@@ -334,17 +336,28 @@ public class TrackerScreen extends Screen {
         if (this.teleportButton.isHoveredOrFocused()) {
             List<Component> tooltips = new ArrayList<>();
             if (this.teleportButton.isActive() || this.trackerList.getSelected() == null) {
-                tooltips.add(Component.literal("Teleports mob to you")
+                tooltips.add(Component.literal("Teleports pet to you")
                         .withStyle(ChatFormatting.GRAY)
                         .withStyle(ChatFormatting.ITALIC));
             } else {
-                tooltips.add(Component.literal("Mob is either dead or in an unloaded chunk. " +
+                tooltips.add(Component.literal("Pet is either dead or in an unloaded chunk. " +
                                 "Location is last known position.")
                         .withStyle(ChatFormatting.GRAY)
                         .withStyle(ChatFormatting.ITALIC));
             }
             guiGraphics.renderTooltip(this.font, tooltips, Optional.empty(), x, y);
         }
+
+        if (this.tpToButton.isHoveredOrFocused()) {
+            List<Component> tooltips = new ArrayList<>();
+
+            tooltips.add(Component.literal("Teleport yourself to the pet’s location")
+                    .withStyle(ChatFormatting.GRAY)
+                    .withStyle(ChatFormatting.ITALIC));
+
+            guiGraphics.renderTooltip(this.font, tooltips, Optional.empty(), x, y);
+        }
+
 
         if (this.removeButton.isHoveredOrFocused()) {
             List<Component> tooltips = new ArrayList<>();
@@ -368,16 +381,26 @@ public class TrackerScreen extends Screen {
         this.teleportButton.active = pActive;
     }
 
+    public void updateTpToButtonStatus(boolean pActive) {
+        this.tpToButton.active = pActive;
+    }
+
     public void updateRemoveButtonStatus(boolean pActive) {
         this.removeButton.active = pActive;
     }
 
     private void updateScanButtonVisibility() {
-        boolean scanRunning = deepScanRunningGlobal;
-        if (deepScanButton != null) deepScanButton.visible = !scanRunning;
+        boolean scanRunning = deepScanRunning;
+        if (scanButton != null) scanButton.visible = !scanRunning;         // 🔴 Red Scan
+        if (extScanButton != null) extScanButton.visible = !scanRunning;   // 🔵 Blue Scan
+        if (deepScanButton != null) deepScanButton.visible = !scanRunning; // ⚫ Black Scan
         if (deepScanButtonFast != null) deepScanButtonFast.visible = !scanRunning;
+        if (teleportButton != null) teleportButton.visible = !scanRunning;
+        if (tpToButton != null) tpToButton.visible = !scanRunning;
+        if (removeButton != null) removeButton.visible = !scanRunning;
         if (stopScanButton != null) stopScanButton.visible = scanRunning;
     }
+
 
     public boolean isPauseScreen() {
         return false;
@@ -385,10 +408,7 @@ public class TrackerScreen extends Screen {
 
     public void onScanFinished() {
         this.deepScanRunning = false;
-        this.deepScanRunningGlobal = false;
-        if (this.deepScanButton != null) this.deepScanButton.visible = true;
-        if (this.deepScanButtonFast != null) this.deepScanButtonFast.visible = true;
-        if (this.stopScanButton != null) this.stopScanButton.visible = false;
+        updateScanButtonVisibility();
     }
 
 
