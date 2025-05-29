@@ -46,39 +46,6 @@ public class TeleportPlayerToLocationPacket {
         return new TeleportPlayerToLocationPacket(x, y, z, dimension);
     }
 
-//    public static void handle(TeleportPlayerToLocationPacket msg, Supplier<NetworkEvent.Context> context) {
-//        context.get().enqueueWork(() -> {
-//            ServerPlayer player = context.get().getSender();
-//            if (player == null) return;
-//
-//            ServerLevel originLevel = (ServerLevel) player.level();
-//            ResourceKey<Level> dimensionKey = ResourceKey.create(Registries.DIMENSION, new ResourceLocation(msg.dimension));
-//            ServerLevel targetLevel = player.getServer().getLevel(dimensionKey);
-//
-//            if (targetLevel == null) {
-//                player.sendSystemMessage(Component.literal("Invalid dimension: " + msg.dimension));
-//                return;
-//            }
-//
-//            BlockPos newPos = new BlockPos(msg.x, msg.y, msg.z);
-//            player.teleportTo(targetLevel, msg.x + 0.5, msg.y, msg.z, player.getYRot(), player.getXRot());
-//
-//            // 🚀 Teleport nearby owned pets that are not sitting
-//            AABB nearby = player.getBoundingBox().inflate(10);
-//            List<Entity> nearbyEntities = originLevel.getEntities(player, nearby, e ->
-//                    e instanceof TamableAnimal pet &&
-//                            pet.isTame() &&
-//                            !pet.isOrderedToSit() &&
-//                            pet.isOwnedBy(player)
-//            );
-//
-//            for (Entity e : nearbyEntities) {
-//                e.teleportTo(targetLevel, msg.x + 0.5, msg.y, msg.z, Set.of(), e.getYRot(), e.getXRot());
-//            }
-//        });
-//        context.get().setPacketHandled(true);
-//    }
-
     public static void handle(TeleportPlayerToLocationPacket msg, Supplier<NetworkEvent.Context> context) {
         context.get().enqueueWork(() -> {
             ServerPlayer player = context.get().getSender();
@@ -119,6 +86,5 @@ public class TeleportPlayerToLocationPacket {
         });
         context.get().setPacketHandled(true);
     }
-
 
 }
